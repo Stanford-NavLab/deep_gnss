@@ -1,14 +1,42 @@
 Code repository accompanying our work on 'Improving GNSS Positioning using Neural Network-based Corrections'. In this paper, we present a Deep Neural Network (DNN) for position estimation using Global Navigation Satellite System (GNSS) measurements. This work was presented virtually at ION GNSS+ 2021 conference. The presentation can be seen [here](https://youtu.be/_ZeEkEPwtAw) and our slides can be viewed [here](https://stanford.box.com/s/dj2eg3v886u408s234p92r52nok8twst) 
 
 ## Installation Instructions
-This code was developed in a `conda` environment running on CentOS 7.9.2009 in Sherlock, Stanford University's HPC. We have provided instructions for installing dependencies of this repository using `conda`
+This code was developed in a `conda` environment running on CentOS 7.9.2009 in Sherlock, Stanford University's HPC. 
 
-### Conda
-To create the environment, use `conda env create -f deep-gnss.yml`
+To create the `conda` environment, use `conda env create -f deep-gnss.yml`
+
+To install the requisite packages using `pip` use `pip install -r requirements.txt`
+
+
 ## Code Overview
+### Directory Structure
+```
+deep_gnss
+|  config
+|  data
+|  py_scripts
+|  src
+   |  correction_network
+   |  gnss_lib
+   |  gtsam
+   |  totalrecall
+```
+### Description
+Our code is divided into two main parts: `src` and `py-scripts`. `src` contains the core functionality that our project is built on while `py-scripts` contains  standalone `python` scripts for generating simulated data and training and evaluating the neural network. `config` contains `.yml` files to set hyper-parameters for the corresponding scripts and can be modified depending on your requirements. `data` contains example data files that our code is designed to work with.
 
+Within `src`, the `correction_network` module defines the PyTorch DataLoaders and Network models; `gnss_lib` contains code that is used to simulate/find expected GNSS measurements; `gtsam` contains code that was used to evalutate Android measurements and obtain navigation solutions for traditional GNSS algorithms; `totalrecall` defines functions and code used to simulate measurements based on a pre-determined 2D NED trajectory.
 
 ## Using our code
+To run the `train_*.py` scripts, run the command `python train_*.py prefix="name_of_your_experiment_here"`. 
+
+To run the data simulation code, run the command `python data_gen.py`.
+
+## Acknowledgements
+The Deep Sets model is taken from the [original implementation](https://github.com/yassersouri/pytorch-deep-sets)
+
+We also used the `EphemerisManager` from Jonathan Mitchell's analysis of the Android Raw GNSS Measurements Dataset ([link to file]((https://github.com/johnsonmitchelld/gnss-analysis/blob/main/gnssutils/ephemeris_manager.py)))
+
+Our coordinate analysis code is based on CommaAI's Laika [repository](https://github.com/commaai/laika)
 
 ## Citing this work
 If you use this code in your research, please cite our paper
@@ -21,6 +49,6 @@ If you use this code in your research, please cite our paper
 }
 ```
 ## Contact
-For any feature requests or bug reports, please submit an issue.
+For any feature requests or bug reports, please submit an issue in this GitHub repository with details or a minimal working example to replicate the bug.
 
 For any comments, suggestions or queries about our work, please contact [Prof. Grace Gao](https://aa.stanford.edu/person/grace-gao) at gracegao [at] stanford [dot] edu
