@@ -1,4 +1,3 @@
-# deep_gnss
 Code repository accompanying our work on 'Improving GNSS Positioning using Neural Network-based Corrections'. In this paper, we present a Deep Neural Network (DNN) for position estimation using Global Navigation Satellite System (GNSS) measurements. This work was presented virtually at ION GNSS+ 2021 conference. The presentation can be seen [here](https://youtu.be/_ZeEkEPwtAw) and our slides can be viewed [here](https://stanford.box.com/s/dj2eg3v886u408s234p92r52nok8twst) 
 
 ## Installation Instructions
