@@ -23,4 +23,4 @@ If you use this code in your research, please cite our paper
 ## Contact
 For any feature requests or bug reports, please submit an issue.
 
-For any comments, suggestions or queries about our work, please contact Prof. Grace Gao at gracegao [at] stanford [dot] edu
+For any comments, suggestions or queries about our work, please contact [Prof. Grace Gao](https://aa.stanford.edu/person/grace-gao) at gracegao [at] stanford [dot] edu
