@@ -79,12 +79,12 @@ def main(config: DictConfig) -> None:
     # TODO: Use config for data_config with same parameters
     data_config = {
     "root": os.path.join(data_directory, config.data_path),
-    "measurement_dir" : "gnss_measurements_old",
+    "measurement_dir" : "gnss_measurements",
     # "initialization_dir" : "initialization_data",
     "use_biases": config.use_biases,
     "max_open_files": 32,
     "guess_range": [config.pos_range_xy, config.pos_range_xy, config.pos_range_z, config.clk_range, config.vel_range_xy, config.vel_range_xy, config.vel_range_z, config.clkd_range],
-        #TODO: Add all required parameters to the data_config file. Maybe set up data_config in train_conf.yaml?
+    "use_biases": config.use_biases
     }
 
     dataset = Sim_GNSS_Dataset(data_config)

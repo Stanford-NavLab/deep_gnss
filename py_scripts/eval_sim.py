@@ -32,7 +32,7 @@ key_wt = 15   # initialization range (from training) to use
 
 config = {
     "root": os.path.join(data_directory, "matlab_simulated"),
-    "measurement_dir" : "gnss_measurements_old_small",
+    "measurement_dir" : "gnss_measurements",
     "guess_range": [key_wt, key_wt, key_wt, 1e-5, 1e-5, 1e-5, 1e-5, 1e-5],
     "max_open_files": 10,
     "use_biases": 0
@@ -55,7 +55,7 @@ y_hat_ls = []
 ls_gt = {}
 ls_gt_corr = {}
 
-val_idx_list = [0, 200]
+val_idx_list = [0, 99]
 for b_t_sel in range(len(val_idx_list)-1):
     b_t_idx = val_idx_list[b_t_sel]
     b_key, seed_idx, timestep = dataset.indices[b_t_idx]
