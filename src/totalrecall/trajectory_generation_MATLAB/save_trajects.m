@@ -36,8 +36,7 @@ init_LLA = zeros(segments, 3);
 trajectories = cell(trajects, 1);
 %% Creating trajectories using random V and H parameters
 for num=1:trajects
-    init_LLA = [37.427112, -122.1764146, 16];
-    %TODO: Add random LLA for Bay Area
+    init_LLA = [37.427112, -122.1764146, 16]
     T = linspace(0, t_end, segments) ; % [s]
     V = zeros(1, segments) ; % [m/s]
     H = zeros(1, segments) ; % [rad]

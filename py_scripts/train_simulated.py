@@ -7,9 +7,8 @@
 import sys, os, csv, datetime
 from typing import Dict
 parent_directory = os.path.split(os.getcwd())[0]
-#TODO: Scrub paths
 src_directory = os.path.join(parent_directory, 'src')
-data_directory = os.path.join('/scratch/groups/gracegao', 'Google_GNSS_data')
+data_directory = os.path.join(parent_directory, 'data')
 ephemeris_data_directory = os.path.join(data_directory, 'ephemeris')
 sys.path.insert(0, src_directory)
 from mpl_toolkits.mplot3d import Axes3D
@@ -35,8 +34,6 @@ from correction_network.dataset import Sim_GNSS_Dataset_Snap as Sim_GNSS_Dataset
 from correction_network.networks import Net_Snapshot, DeepSetModel
 
 
-# TODO: Fix the order of the imports (system then custom modules)
-
 def collate_feat(batch):
     sorted_batch = sorted(batch, key=lambda x: x['features'].shape[0], reverse=True)
     features = [x['features'] for x in sorted_batch]
@@ -44,7 +41,7 @@ def collate_feat(batch):
     L, N, dim = features_padded.size()
     pad_mask = np.zeros((N, L))
     for i, x in enumerate(features):
-        pad_mask[i, len(x):] = 1 #TODO: Change len(x) to last non-zero entry
+        pad_mask[i, len(x):] = 1 
     pad_mask = torch.Tensor(pad_mask).bool()
     correction = torch.Tensor([x['true_correction'] for x in sorted_batch])
     guess = torch.Tensor([x['guess'] for x in sorted_batch])
@@ -79,7 +76,6 @@ def test_eval(val_loader, net, loss_func):
 
 @hydra.main(config_path="../config", config_name="train_conf")
 def main(config: DictConfig) -> None:
-    # TODO: Use config for data_config with same parameters
     data_config = {
     "root": os.path.join(data_directory, config.data_path),
     "measurement_dir" : "gnss_measurements_old",
@@ -87,7 +83,6 @@ def main(config: DictConfig) -> None:
     # "info_path": "data_info.csv",
     "max_open_files": 32,
     "guess_range": config.guess_range
-        #TODO: Add all required parameters to the data_config file. Maybe set up data_config in train_conf.yaml?
     }
 
     dataset = Sim_GNSS_Dataset(data_config)

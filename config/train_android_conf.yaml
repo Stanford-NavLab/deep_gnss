@@ -1,0 +1,24 @@
+frac: 0.9
+batch_size: 64
+learning_rate: 3e-4
+N_test_batches: 100
+N_train_epochs: 200
+num_workers: 16
+pos_range_xy: 15
+pos_range_z: 15
+clk_range: 1e-5
+vel_range_xy: 1e-5
+vel_range_z: 1e-5
+clkd_range: 1e-5
+raw_data_dir: "train"
+data_dir: "android_train_processed"
+bias_fname: 'train_biases.csv'
+model_name: 'set_transformer'   # ['set_transformer',  'deepsets']
+max_open_files: 32
+history: 0
+seed: 0
+chunk_size: 100
+max_sats: 13
+writer: True
+resume: 0
+prefix: ??? # Prefix is a required variable to run the file

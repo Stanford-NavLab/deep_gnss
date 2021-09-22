@@ -1,0 +1,10 @@
+frac: 0.9
+batch_size: 64
+learning_rate: 3e-4
+N_test_batches: 100
+N_train_epochs: 100 # 100
+num_workers: 16
+data_path: "matlab_simulated"
+model_name: 'set_transformer'   # ['set_transformer',  'deepsets']
+guess_range: [15, 15, 15, 1e-5, 1e-5, 1e-5, 1e-5, 1e-5] 
+prefix: ??? # Prefix is a required variable to run the file

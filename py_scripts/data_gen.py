@@ -5,9 +5,8 @@
 ########################################################################
 import sys, os, csv
 parent_directory = os.path.split(os.getcwd())[0]
-#TODO: Scrub paths
 src_directory = os.path.join(parent_directory, 'src')
-data_directory = os.path.join('/scratch/groups/gracegao', 'Google_GNSS_data')
+data_directory = os.path.join(parent_directory, 'data')
 ephemeris_data_directory = os.path.join(data_directory, 'ephemeris')
 sys.path.insert(0, src_directory)
 import numpy as np
@@ -19,7 +18,7 @@ from datetime import datetime
 from gnss_lib.coordinates import geodetic2ecef
 from totalrecall.simulator_utils import save_simulated_dataset
 
-path_root = '/scratch/groups/gracegao/Google_GNSS_data'
+path_root = parent_directory
 # Execute the functions above to generate the data
 start_time = datetime(2020, 5, 15, 0, 47, 15, 448796, pytz.UTC)
 x_LLA = np.reshape([37.427112, -122.1764146, 16], [1, 3])

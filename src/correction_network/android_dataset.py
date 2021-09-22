@@ -15,13 +15,11 @@ import gnss_lib.coordinates as coord
 pd.options.mode.chained_assignment = None  # default='warn'
 
 class Android_GNSS_Dataset(Dataset):
-    # TODO: Implement  
     def __init__(self, config, transforms=None):
         self.root=config['root']
         self.raw_dir=config['raw_data_dir']
         self.in_root = os.path.join(self.root, self.raw_dir)
         
-        # TODO: Remove raw_dir and data_dir if not used
         self.data_dir = config['data_dir']
         self.out_root = os.path.join(self.root, self.data_dir)
         

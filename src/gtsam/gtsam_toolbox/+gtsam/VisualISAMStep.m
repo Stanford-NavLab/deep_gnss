@@ -19,7 +19,6 @@ for k=1:length(data.Z{nextPoseIndex})
     j = data.J{nextPoseIndex}{k};
     jj = symbol('l', j);
     newFactors.add(GenericProjectionFactorCal3_S2(zij, noiseModels.measurement, symbol('x',nextPoseIndex), jj, data.K));
-    % TODO: initialize with something other than truth
     if ~result.exists(jj) && ~initialEstimates.exists(jj)
         lmInit = truth.points{j};
         initialEstimates.insert(jj, lmInit);

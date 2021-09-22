@@ -18,10 +18,8 @@ def _extract_pos_vel_arr(satXYZV):
     satXYZ = satXYZ.to_numpy()
     satV = satV.to_numpy()
     return prns, satXYZ, satV
-    #TODO: Remove prns from function output if not needed
 
 
-#TODO: Add a function to simulate noisy measurements (the entire workflow)
 def simulate_measures(gpsweek, gpstime, ephem, pos, bias, b_dot, vel, prange_sigma = 6, doppler_sigma=0.1, satXYZV=None):
     ephem = _find_visible_sats(gpsweek, gpstime, pos, ephem) 
     measurements, satXYZV = expected_measures(gpsweek, gpstime, ephem, pos, bias, b_dot, vel, satXYZV)
@@ -89,7 +87,7 @@ def _find_visible_sats(gpsweek, gpstime, Rx_ECEF, ephem, el_mask=5):
     # Keep attributes of only those satellites which are visible
     keep_ind = approx_elaz[:,0] > el_mask
     prns = approx_XYZV.index.to_numpy()[keep_ind] 
-    eph = ephem.loc[keep_ind, :] #TODO: Check that a copy of the ephemeris is being generated, also if it is needed
+    eph = ephem.loc[keep_ind, :]
     return eph
 
 
@@ -132,7 +130,6 @@ def _find_delxyz_range(satXYZV, pos, satellites):
 
 def FindSat(ephem, times, gpsweek):
     # Satloc contains both positions and velocities.
-    # TODO: Look into combining this method with the ones in read_rinex.py
     """
     # Original in ECE456_orbitutils.py. #NOTE: Ask Ashwin for original source
     # Function to coarse calculate satellite positions given the GPS almanac.
@@ -165,7 +162,6 @@ def FindSat(ephem, times, gpsweek):
     satXYZV = pd.DataFrame()
     satXYZV['sv'] = ephem.index
     satXYZV.set_index('sv', inplace=True)
-    #TODO: Check if 'dt' or 'times' should be stored in the final DataFrame
     satXYZV['times'] = times 
     dt = (times - ephem['t_oe']) + (np.mod(gpsweek, 1024) - np.mod(ephem['GPSWeek'],1024))*604800.0
     # Calculate the mean anomaly with corrections

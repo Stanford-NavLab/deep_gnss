@@ -109,8 +109,6 @@ def _kepler(mk, e):
     count += 1
   return ek
 
-  #TODO: Delete versions of the code 
-
 def _ephem2xyz(ephem, data):
   tk = (data.Week-ephem.GPSWeek)*604800 + (data.ReceivedSvTimeNanos/1e9 - ephem.Toe)      # Time since time of applicability accounting for weeks
   A = ephem.sqrtA**2      # semi-major axis of orbit

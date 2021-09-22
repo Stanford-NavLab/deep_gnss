@@ -3,7 +3,6 @@
 # Date:         21 September 2021
 # Desc:         Measurement visualization code
 ########################################################################
-#TODO: Delete this file if not needed
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt # plotting
 import seaborn as sns

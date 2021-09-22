@@ -19,7 +19,6 @@ noiseModels.point = noiseModel.Isotropic.Sigma(3, 0.1);
 noiseModels.measurement = noiseModel.Isotropic.Sigma(2, 1.0);
 
 %% Add constraints/priors
-% TODO: should not be from ground truth!
 newFactors = NonlinearFactorGraph;
 initialEstimates = Values;
 for i=1:2
@@ -43,7 +42,6 @@ for i=1:2
         j = data.J{i}{k};
         jj = symbol('l',data.J{i}{k});
         newFactors.add(GenericProjectionFactorCal3_S2(data.Z{i}{k}, noiseModels.measurement, ii, jj, data.K));
-        % TODO: initial estimates should not be from ground truth!
         if ~initialEstimates.exists(jj)
             initialEstimates.insert(jj, truth.points{j});
         end

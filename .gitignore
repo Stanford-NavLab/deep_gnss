@@ -7,7 +7,6 @@ ION*
 __pycache/*
 */__pycache/*
 */__pycache__/*
-*.yaml
 *.log
 results/*
 data/*
@@ -17,6 +16,5 @@ docs/ION*
 .pytest_cache
 *.html
 
-scripts/slurm*
 notebooks/.ipynb_checkpoints/*
 *.out

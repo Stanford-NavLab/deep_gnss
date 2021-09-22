@@ -1,4 +1,8 @@
-#TODO: Delete this file
+########################################################################
+# Author(s):    Shubh Gupta
+# Date:         21 September 2021
+# Desc:         Calculate pseudoranges from Android raw measurements  
+########################################################################
 import pandas as pd
 import numpy as np
 

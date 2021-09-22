@@ -7,9 +7,8 @@
 import sys, os, csv, datetime
 from typing import Dict
 parent_directory = os.path.split(os.getcwd())[0]
-#TODO: Scrub path
 src_directory = os.path.join(parent_directory, 'src')
-data_directory = os.path.join('/scratch/groups/gracegao', 'Google_GNSS_data')
+data_directory = os.path.join(parent_directory, 'data')
 ephemeris_data_directory = os.path.join(data_directory, 'ephemeris')
 sys.path.insert(0, src_directory)
 from mpl_toolkits.mplot3d import Axes3D
@@ -77,7 +76,6 @@ def test_eval(val_loader, net, loss_func):
 
 @hydra.main(config_path="../config", config_name="train_android_conf")
 def main(config: DictConfig) -> None:
-    # TODO: Use config for data_config with same parameters
     data_config = {
     "root": data_directory,
     "raw_data_dir" : config.raw_data_dir,
