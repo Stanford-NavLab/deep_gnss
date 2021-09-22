@@ -16,13 +16,12 @@ deep_gnss
 |  src
    |  correction_network
    |  gnss_lib
-   |  gtsam
    |  totalrecall
 ```
 ### Description
 Our code is divided into two main parts: `src` and `py-scripts`. `src` contains the core functionality that our project is built on while `py-scripts` contains  standalone `python` scripts for generating simulated data and training and evaluating the neural network. `config` contains `.yml` files to set hyper-parameters for the corresponding scripts and can be modified depending on your requirements. `data` contains example data files that our code is designed to work with.
 
-Within `src`, the `correction_network` module defines the PyTorch DataLoaders and Network models; `gnss_lib` contains code that is used to simulate/find expected GNSS measurements; `gtsam` contains code that was used to evalutate Android measurements and obtain navigation solutions for traditional GNSS algorithms; `totalrecall` defines functions and code used to simulate measurements based on a pre-determined 2D NED trajectory.
+Within `src`, the `correction_network` module defines the PyTorch DataLoaders and Network models; `gnss_lib` contains code that is used to simulate/find expected GNSS measurements; `totalrecall` defines functions and code used to simulate measurements based on a pre-determined 2D NED trajectory.
 
 ## Using our code
 To run the `train_*.py` scripts, run the command `python train_*.py prefix="name_of_your_experiment_here"`. 
