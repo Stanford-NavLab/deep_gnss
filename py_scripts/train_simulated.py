@@ -78,11 +78,12 @@ def test_eval(val_loader, net, loss_func):
 def main(config: DictConfig) -> None:
     data_config = {
     "root": os.path.join(data_directory, config.data_path),
-    "measurement_dir" : "gnss_measurements_old",
+    "measurement_dir" : "gnss_measurements",
     # "initialization_dir" : "initialization_data",
     # "info_path": "data_info.csv",
     "max_open_files": 32,
-    "guess_range": config.guess_range
+    "guess_range": [config.pos_range_xy, config.pos_range_xy, config.pos_range_z, config.clk_range, config.vel_range_xy, config.vel_range_xy, config.vel_range_z, config.clkd_range],
+    "use_biases": config.use_biases
     }
 
     dataset = Sim_GNSS_Dataset(data_config)

@@ -26,19 +26,25 @@ start_ECEF = np.reshape(geodetic2ecef(x_LLA), [3, 1])
 steps = 1000
 
 
-savepath = path_root + '/simulated_nonoise/gnss_measurements/'
+savepath = data_directory + '/simulated_nonoise/gnss_measurements/'
 
 traject_func = "traject_gen_zigzag"
+if not os.path.exists(savepath):
+    os.makedirs(savepath)
 
 _ = save_simulated_dataset(traject_func, steps, start_time, start_ECEF, ephemeris_data_directory, save=True, savepath=savepath, noise=True)
 _ = save_simulated_dataset(traject_func, steps, start_time, start_ECEF, ephemeris_data_directory, save=True, savepath=savepath, noise=False)
 
 traject_func = 'MATLAB_saved'
 # loadpath = os.path.join(path_root, '/matlab_trajectories/')
-loadpath = path_root + '/matlab_trajectories/'
-for idx in range(10):
+loadpath = data_directory + '/matlab_trajectories/'
+for idx in range(1):
     print('Processing trajectory ', str(idx))
-    savepath = path_root + '/matlab_simulated_nonoise/gnss_measurements/'
+    savepath = data_directory + '/matlab_simulated_nonoise/gnss_measurements/'
+    if not os.path.exists(savepath):
+        os.makedirs(savepath)
     _ = save_simulated_dataset(traject_func, None, start_time, start_ECEF, ephemeris_data_directory, traject_idx=idx, save=True, savepath=savepath, loadpath=loadpath, noise=False)
-    savepath = path_root + '/matlab_simulated/gnss_measurements/'
+    savepath = data_directory + '/matlab_simulated/gnss_measurements/'
+    if not os.path.exists(savepath):
+        os.makedirs(savepath)
     _ = save_simulated_dataset(traject_func, None, start_time, start_ECEF, ephemeris_data_directory, traject_idx=idx, save=True, savepath=savepath, loadpath=loadpath, noise=True)

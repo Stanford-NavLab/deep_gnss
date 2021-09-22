@@ -63,7 +63,8 @@ y_wls_ls = []
 ls_gt = {}
 ls_gt_corr = {}
 
-val_idx_list = [2888, 2988]
+# val_idx_list = [2888, 2988]
+val_idx_list = [1, 100]
 for b_t_sel in range(len(val_idx_list)-1):
     b_t_idx = val_idx_list[b_t_sel]
     b_key, t_idx = dataset.indices[b_t_idx]
