@@ -18,3 +18,4 @@ docs/ION*
 
 notebooks/.ipynb_checkpoints/*
 *.out
+.python-version
