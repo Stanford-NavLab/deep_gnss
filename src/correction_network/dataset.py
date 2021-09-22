@@ -49,8 +49,11 @@ class Sim_GNSS_Dataset_Snap(Dataset):
         self.guess_range = config['guess_range']
         self.transform = transforms
         # Save number of entries in each file
+        # self.info = pd.read_csv(os.path.join(self.root, info_path))
+        # self.timestep_counts = {row['id'] : row['len'] for row in self.info.iterrows()}
         self.timestep_counts = {}
-
+        self.use_biases = bool(config['use_biases'])
+        
         # Save file paths
         file_paths = {}
         seed_values = {}
@@ -67,6 +70,14 @@ class Sim_GNSS_Dataset_Snap(Dataset):
             self.timestep_counts[traj_id] = len(data['t_idx'].unique())
         self.meas_file_paths = file_paths
         self.seed_values = seed_values
+
+        # file_paths = {key : [] for key in self.meas_file_paths.keys()}
+        # for file_path in os.listdir(os.path.join(self.root, init_dir)):
+        #     tmp_idx = os.path.split(file_path).split(".")[0]
+        #     traj_id, seed_id = tmp_idx.split("_")
+        #     traj_id = int(traj_id)
+        #     file_paths[traj_id].append(file_path)    # Done this way to add paths from multiple directories later
+        # self.init_file_paths = file_paths
         
         # Save number of seeds for each trajectory
         self.seed_counts = {key : len(value) for (key, value) in self.meas_file_paths.items()}
@@ -91,6 +102,10 @@ class Sim_GNSS_Dataset_Snap(Dataset):
                 seed_idx = 0
                 traj_idx += 1 
         self.indices = indices
+        
+        # Initialize biases
+        if self.use_biases:
+            self.biases = {}
 
     def get_files(self, key, seed):
         # Cache based manager of data files
@@ -112,6 +127,16 @@ class Sim_GNSS_Dataset_Snap(Dataset):
                 self.cache_times.pop(pop_key)
             self.cache_traj[seed_hash] = seed_file
             self.cache_times[seed_hash] = times
+        
+        # # Repeat for Seed file
+        # seed_hash = str(key)+"_"+str(seed_idx)
+        # if seed_hash in self.cache_seed.keys():
+        #     seed_file = self.cache_seed[seed_hash]
+        # else:
+        #     seed_file = pd.read_csv(self.init_file_paths[key][seed_idx])
+        #     if len(self.cache_traj) + len(self.cache_seed) >= self.max_open_files:
+        #         self.cache_seed.pop(list(self.cache_seed.keys())[0])
+        #     self.cache_seed[seed_hash] = seed_file
 
         return seed_file, times
 
@@ -139,6 +164,7 @@ class Sim_GNSS_Dataset_Snap(Dataset):
         # Select random initialization
         true_XYZb = np.array([_data0['Rxx'], _data0['Rxy'], _data0['Rxz'], _data0['b'], _data0['Rxvx'], _data0['Rxvy'], _data0['Rxvz'], _data0['b_dot']])
         guess_XYZb = self.add_guess_noise(true_XYZb)    # Generate guess by adding noise to groundtruth
+#         guess_XYZb = np.copy(true_XYZb)         # 0 noise for debugging 
         
         # Transform to NED frame
         ref_local = coord.LocalCoord.from_ecef(guess_XYZb[:3])
@@ -165,13 +191,31 @@ class Sim_GNSS_Dataset_Snap(Dataset):
         # vel_sat = (satXYZV[['vx', 'vy', 'vz']]).to_numpy()
         # vel_sat = ref_local.ecef2nedv(vel_sat)/2750.0       # Normalizing sat velocity     
         # vel_veh = np.repeat(guess_XYZb[4:7][None, :], len(vel_sat), axis=0)
+        
+        # Add biases
+        if self.use_biases:
+            if idx not in self.biases.keys():
+                num_sats = len(residuals)
+                num_biased = min(np.random.poisson(1), num_sats)
+                sat_indices = np.arange(num_sats)
+                np.random.shuffle(sat_indices)
+                bias_vec = np.zeros(num_sats)
+                for sat_idx in sat_indices[:num_biased]:
+                    bias_vec[sat_idx] = np.random.uniform(50, 200)
+                self.biases[idx] = bias_vec
+
+            _residuals = residuals[:, 0] + self.biases[idx]
+        else:
+            _residuals = residuals[:, 0]
 
         # Replace with some fancier feature extraction or input to permutation invariant layer
-        features = np.concatenate((residuals[:, 0][:, None], los_vector), axis=1)
+        features = np.concatenate((_residuals[:, None], los_vector), axis=1)
         
         sample = {
             'features': torch.Tensor(features),
             'true_correction': (true_NEDb-guess_NEDb)[:3],
+            # 'satpos': satXYZV.to_numpy(),
+            # 'measurements': measurements.to_numpy(),
             'guess': guess_XYZb
         }
 
