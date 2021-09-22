@@ -1,3 +1,9 @@
+########################################################################
+# Author(s):    Shubh Gupta
+# Date:         22 September 2021
+# Desc:         Evaluate DNN to output position corrections for simulated
+#               measurements
+########################################################################
 import sys, os, csv, datetime
 parent_directory = os.path.split(os.getcwd())[0]
 src_directory = os.path.join(parent_directory, 'src')
