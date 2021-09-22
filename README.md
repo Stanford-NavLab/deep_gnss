@@ -31,6 +31,8 @@ To run the `train_*.py` scripts, run the command `python train_*.py prefix="name
 
 To run the data simulation code, run the command `python data_gen.py`.
 
+Weights for trained networks can be found [here](https://stanford.box.com/s/pai1cqayccwumfa0289388e8y662p772)
+
 ## Acknowledgements
 The Deep Sets model is taken from the [original implementation](https://github.com/yassersouri/pytorch-deep-sets)
 
