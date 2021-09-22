@@ -1,5 +1,4 @@
 ION*
-*.csv
 .vs/
 *.pyc
 */*.pyc
@@ -9,7 +8,6 @@ __pycache/*
 */__pycache__/*
 *.log
 results/*
-data/*
 fgo*
 docs/ION*
 *.out
