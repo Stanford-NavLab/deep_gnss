@@ -41,7 +41,7 @@ def collate_feat(batch):
     L, N, dim = features_padded.size()
     pad_mask = np.zeros((N, L))
     for i, x in enumerate(features):
-        pad_mask[i, len(x):] = 1 
+        pad_mask[i, len(x):] = 1 #TODO: Change len(x) to last non-zero entry
     pad_mask = torch.Tensor(pad_mask).bool()
     correction = torch.Tensor([x['true_correction'] for x in sorted_batch])
     guess = torch.Tensor([x['guess'] for x in sorted_batch])
@@ -76,13 +76,15 @@ def test_eval(val_loader, net, loss_func):
 
 @hydra.main(config_path="../config", config_name="train_conf")
 def main(config: DictConfig) -> None:
+    # TODO: Use config for data_config with same parameters
     data_config = {
     "root": os.path.join(data_directory, config.data_path),
     "measurement_dir" : "gnss_measurements_old",
     # "initialization_dir" : "initialization_data",
-    # "info_path": "data_info.csv",
+    "use_biases": config.use_biases,
     "max_open_files": 32,
-    "guess_range": config.guess_range
+    "guess_range": [config.pos_range_xy, config.pos_range_xy, config.pos_range_z, config.clk_range, config.vel_range_xy, config.vel_range_xy, config.vel_range_z, config.clkd_range],
+        #TODO: Add all required parameters to the data_config file. Maybe set up data_config in train_conf.yaml?
     }
 
     dataset = Sim_GNSS_Dataset(data_config)
