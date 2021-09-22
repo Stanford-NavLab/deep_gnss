@@ -5,8 +5,6 @@ This code was developed in a `conda` environment running on CentOS 7.9.2009 in S
 
 To create the `conda` environment, use `conda env create -f deep-gnss.yml`
 
-To install the requisite packages using `pip` use `pip install -r requirements.txt`
-
 
 ## Code Overview
 ### Directory Structure
