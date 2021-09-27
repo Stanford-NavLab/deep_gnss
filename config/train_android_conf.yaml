@@ -12,7 +12,7 @@ vel_range_z: 1e-5
 clkd_range: 1e-5
 raw_data_dir: "train"
 data_dir: "android_train_processed"
-bias_fname: 'train_biases.csv'
+bias_fname: 0
 model_name: 'set_transformer'   # ['set_transformer',  'deepsets']
 max_open_files: 32
 history: 0
