@@ -1,8 +1,8 @@
+Code repository accompanying our work on 'Improving GNSS Positioning using Neural Network-based Corrections'. In this paper, we present a Deep Neural Network (DNN) for position estimation using Global Navigation Satellite System (GNSS) measurements. This work was presented virtually at ION GNSS+ 2021 conference. The presentation can be seen [here](https://youtu.be/_ZeEkEPwtAw) and our slides can be viewed [here](https://stanford.box.com/s/dj2eg3v886u408s234p92r52nok8twst) 
+
 <!--- Badge for paper link---> <a href="https://stanford.box.com/s/vt1pq3nppz0he5i57vux02c1349x23r1"><img src="https://img.shields.io/badge/ION%20GNSS%2B%202021-paper-informational"/></a>
 <!--- Badge for slides link---><a href="https://stanford.box.com/s/dj2eg3v886u408s234p92r52nok8twst"><img src="https://img.shields.io/badge/ION%20GNSS%2B%202021-slides-informational"/></a>
 <!--- Badge for video link---><a href="https://youtu.be/_ZeEkEPwtAw"><img src="https://img.shields.io/badge/ION%20GNSS%2B%202021-video-red"/></a>
-
-Code repository accompanying our work on 'Improving GNSS Positioning using Neural Network-based Corrections'. In this paper, we present a Deep Neural Network (DNN) for position estimation using Global Navigation Satellite System (GNSS) measurements. This work was presented virtually at ION GNSS+ 2021 conference. The presentation can be seen [here](https://youtu.be/_ZeEkEPwtAw) and our slides can be viewed [here](https://stanford.box.com/s/dj2eg3v886u408s234p92r52nok8twst) 
 
 ## Installation Instructions
 This code was developed in a `conda` environment running on CentOS 7.9.2009 in Sherlock, Stanford University's HPC. 
