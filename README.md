@@ -44,7 +44,7 @@ Our coordinate analysis code is based on CommaAI's Laika [repository](https://gi
 ## Citing this work
 If you use this code in your research, please cite our paper
 ```
-@inproceedings{kanhere2019consensus,
+@inproceedings{kanhere2021improving,
   title={ Improving GNSS Positioning using Neural Network-based Corrections},
   author={Kanhere, Ashwin Vivek and Gupta, Shubh and Shetty, Akshay and Gao, Grace Xingxin},
   booktitle={32nd International Technical Meeting of the Satellite Division of the Institute of Navigation, ION GNSS+ 2021}
