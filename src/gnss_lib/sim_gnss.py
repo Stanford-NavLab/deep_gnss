@@ -1,8 +1,3 @@
-########################################################################
-# Author(s):    Ashwin Kanhere
-# Date:         21 September 2021
-# Desc:         Code for simulated/expected GNSS measurements
-########################################################################
 import numpy as np
 import pandas as pd
 from numpy.random import default_rng
@@ -18,8 +13,10 @@ def _extract_pos_vel_arr(satXYZV):
     satXYZ = satXYZ.to_numpy()
     satV = satV.to_numpy()
     return prns, satXYZ, satV
+    #TODO: Remove prns from function output if not needed
 
 
+#TODO: Add a function to simulate noisy measurements (the entire workflow)
 def simulate_measures(gpsweek, gpstime, ephem, pos, bias, b_dot, vel, prange_sigma = 6, doppler_sigma=0.1, satXYZV=None):
     ephem = _find_visible_sats(gpsweek, gpstime, pos, ephem) 
     measurements, satXYZV = expected_measures(gpsweek, gpstime, ephem, pos, bias, b_dot, vel, satXYZV)
@@ -29,6 +26,17 @@ def simulate_measures(gpsweek, gpstime, ephem, pos, bias, b_dot, vel, prange_sig
     measurements['doppler'] = measurements['doppler'] + doppler_sigma*rng.standard_normal(M)
     return measurements, satXYZV
 
+
+def precompute_prange_satpos(gpsweek, gpstime, ephem, pos, bias, b_dot, vel, satXYZV=None):
+    pos = np.reshape(pos, [1, 3])
+    vel = np.reshape(vel, [1, 3])
+    GPSconstants = gpsconsts()
+    satXYZV, delXYZ, true_range = find_sat_location(gpsweek, gpstime, ephem, pos, satXYZV)
+    _, satXYZ, satV = _extract_pos_vel_arr(satXYZV)
+    # satXYZ, satV, delXYZ are both Nx3
+    # Obtain corrected pseudoranges and add receiver clock bias to them
+    prange_correction = correct_pseudorange(gpstime, gpsweek, ephem, true_range, np.reshape(pos, [-1, 3])) - true_range
+    return prange_correction, satXYZV
 
 def expected_measures(gpsweek, gpstime, ephem, pos, bias, b_dot, vel, satXYZV=None):
     #NOTE: When using saved data, pass saved DataFrame with ephemeris in ephem and satellite positions in satXYZV
@@ -63,6 +71,38 @@ def expected_measures(gpsweek, gpstime, ephem, pos, bias, b_dot, vel, satXYZV=No
     measurements = pd.DataFrame(np.column_stack((prange, doppler)), index=satXYZV.index, columns=['prange', 'doppler'])
     return measurements, satXYZV
 
+def expected_measures_minimal(pos, bias, b_dot, vel, satXYZ, satV, prange_corr):
+    #NOTE: When using saved data, pass saved DataFrame with ephemeris in ephem and satellite positions in satXYZV
+    """
+    Return elevation/azimuth, closest ephemeris and prns of visible satellites.
+    
+    Parameters:
+    gpsweek:
+    gpstime:
+    ephem: 
+    pos: 1x3 position vector in ECEF (m)
+    bias:  
+    b_dot:
+    vel: 1x3 vector for receiver velocity (m)
+    Returns:
+    prange:
+    prange_rate:
+    """
+    pos = np.reshape(pos, [1, 3])
+    vel = np.reshape(vel, [1, 3])
+    GPSconstants = gpsconsts()
+    delXYZ, true_range = _find_delxyz_range_np(satXYZ, pos, len(satXYZ))
+    
+    prange = true_range + prange_corr
+    # satXYZ, satV, delXYZ are both Nx3
+    # Obtain corrected pseudoranges and add receiver clock bias to them
+    # Obtain difference of velocity between satellite and receiver
+    delV = satV - np.tile(np.reshape(vel, 3), [len(satV), 1])
+    prange_rate = np.sum(delV*delXYZ, axis=1)/true_range + b_dot
+    doppler = -(GPSconstants.f1/GPSconstants.c) * (prange_rate)
+    
+    return prange, doppler
+
 
 def _find_visible_sats(gpsweek, gpstime, Rx_ECEF, ephem, el_mask=5):
     """
@@ -87,7 +127,7 @@ def _find_visible_sats(gpsweek, gpstime, Rx_ECEF, ephem, el_mask=5):
     # Keep attributes of only those satellites which are visible
     keep_ind = approx_elaz[:,0] > el_mask
     prns = approx_XYZV.index.to_numpy()[keep_ind] 
-    eph = ephem.loc[keep_ind, :]
+    eph = ephem.loc[keep_ind, :] #TODO: Check that a copy of the ephemeris is being generated, also if it is needed
     return eph
 
 
@@ -104,32 +144,39 @@ def find_sat_location(gpsweek, gpstime, ephem, pos, satXYZV=None):
         tcorr = true_range/GPSconstants.c
         # Find satellite locations at (a more accurate) time of transmission
         satXYZV = FindSat(ephem, gpstime-tcorr, gpsweek)
+        # Corrections for the rotation of the Earth during transmission
+        _, satXYZ, satV = _extract_pos_vel_arr(satXYZV)
+        delX = GPSconstants.OmegaEDot*satXYZV['x'] * tcorr
+        delY = GPSconstants.OmegaEDot*satXYZV['y'] * tcorr 
+        satXYZV['x'] = satXYZV['x'] + delX
+        satXYZV['y'] = satXYZV['y'] + delY
     else:
         satellites = len(satXYZV.index)
     delXYZ, true_range = _find_delxyz_range(satXYZV, pos, satellites)
-    # Corrections for the rotation of the Earth during transmission
-    _, satXYZ, satV = _extract_pos_vel_arr(satXYZV)
-    delX = GPSconstants.OmegaEDot*satXYZV['x'] * tcorr
-    delY = GPSconstants.OmegaEDot*satXYZV['y'] * tcorr 
-    satXYZV['x'] = satXYZV['x'] + delX
-    satXYZV['y'] = satXYZV['y'] + delY
+    
     return satXYZV, delXYZ, true_range
 
-
-def _find_delxyz_range(satXYZV, pos, satellites):
+def _find_delxyz_range_np(satXYZ, pos, satellites):
     # Repeating computation in find_sat_location
     #NOTE: Input is from satellite finding in AE 456 code
     pos = np.reshape(pos, [1, 3])
     if np.size(pos)!=3:
         raise ValueError('Position is not in XYZ')
-    _, satXYZ, _ = _extract_pos_vel_arr(satXYZV)
     delXYZ = satXYZ - np.tile(np.reshape(pos, [-1, 3]), (satellites, 1))
     true_range = np.linalg.norm(delXYZ, axis=1)
+    return delXYZ, true_range
+
+def _find_delxyz_range(satXYZV, pos, satellites):
+    # Repeating computation in find_sat_location
+    #NOTE: Input is from satellite finding in AE 456 code
+    _, satXYZ, _ = _extract_pos_vel_arr(satXYZV)
+    delXYZ, true_range = _find_delxyz_range_np(satXYZ, pos, satellites)
     return delXYZ, true_range
 
 
 def FindSat(ephem, times, gpsweek):
     # Satloc contains both positions and velocities.
+    # TODO: Look into combining this method with the ones in read_rinex.py
     """
     # Original in ECE456_orbitutils.py. #NOTE: Ask Ashwin for original source
     # Function to coarse calculate satellite positions given the GPS almanac.
@@ -162,6 +209,7 @@ def FindSat(ephem, times, gpsweek):
     satXYZV = pd.DataFrame()
     satXYZV['sv'] = ephem.index
     satXYZV.set_index('sv', inplace=True)
+    #TODO: Check if 'dt' or 'times' should be stored in the final DataFrame
     satXYZV['times'] = times 
     dt = (times - ephem['t_oe']) + (np.mod(gpsweek, 1024) - np.mod(ephem['GPSWeek'],1024))*604800.0
     # Calculate the mean anomaly with corrections

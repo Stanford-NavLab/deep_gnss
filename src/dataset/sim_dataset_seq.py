@@ -1,0 +1,123 @@
+import sys, os, csv
+import matplotlib.pyplot as plt # plotting
+import numpy as np # linear algebra
+import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
+import torch
+from torch.utils.data import Dataset, DataLoader
+import torch.nn.functional as F
+import random
+from numpy.random import default_rng
+
+from gnss_lib.sim_gnss import expected_measures_minimal
+from gnss_lib.utils import datetime_to_tow 
+from gnss_lib import coordinates as coord
+from utils import *
+
+import xarray as xr
+
+class Sim_GNSS_Dataset_Seq(Dataset):
+    def __init__(self, config, transforms=None, verbose=False):
+        #TODO: Add a limit on how many trajectories to use, if training on a subset of data is desired
+        #TODO: Integrate window of past measurements 
+        self.root = config['root']
+        data_dir = config['measurement_dir']
+        # init_dir = config['initialization_dir']
+        # info_path = config['info_path']
+        self.max_open_files = config['max_open_files'] #cache size
+        self.guess_range = config['guess_range']
+        self.history = config['history'] # Number of past measurements for current estimation
+        self.rng = default_rng()
+        self.transform = transforms
+        self.max_sats = 0
+        self.sv_feature_dim = 4
+        
+        file_paths, indices = parse_filepaths_batched(os.path.join(self.root, data_dir), verbose=verbose)
+        
+        self.file_paths = file_paths
+        
+        self.N_total = int((~file_paths.isnull()).sum())
+        
+        self.indices = indices
+        
+        
+    def __len__(self):
+        return int(self.N_total)
+    
+    def __getitem__(self, idx):
+        traj_idx, chunk_idx, seed_idx, t_idx = self.indices[idx]
+        
+        
+        filepath = self.file_paths.loc[traj_idx, chunk_idx, seed_idx, t_idx]
+        data = pd.read_hdf(filepath.item(), 'new_data')
+
+        sv_features, guess_XYZb_base, ref_local_base, true_delta, tow_base = self.process_sample(data)
+        
+        all_sv_features = [sv_features]
+        all_pose_features = [np.zeros(4)]
+        all_true_deltas = [true_delta[:4]]
+        all_guess_pose = [guess_XYZb_base[:4]]
+        
+        all_mask_time = [True]
+        
+        for timestep in range(t_idx, t_idx - self.history, -1):
+            if timestep<0:
+                sv_features = np.zeros((1, self.sv_feature_dim))
+                guess_XYZb = np.zeros(8)
+                ref_local = None
+                pose_delta = np.zeros(5)
+                true_delta = np.zeros(8)
+                mask_time = False
+            else:
+                filepath = self.file_paths.loc[traj_idx, chunk_idx, seed_idx, timestep]
+                data = pd.read_hdf(filepath.item(), 'new_data')
+
+                sv_features, guess_XYZb, ref_local, true_delta, tow = self.process_sample(data)
+                pose_delta = np.zeros(5)
+                pose_delta[:3] = ref_local.ecef2nedv(guess_XYZb[:3] - guess_XYZb_base[:3])
+                pose_delta[3] = guess_XYZb[3] - guess_XYZb_base[3]
+                pose_delta[4] = tow - tow_base
+                mask_time = True
+                
+            all_sv_features.append(sv_features)
+            all_pose_features.append(pose_delta)
+            all_true_deltas.append(true_delta[:4])
+            all_guess_pose.append(guess_XYZb[:4])
+            all_mask_time.append(mask_time)
+            
+        samples = {
+            'sv_features': all_sv_features,
+            'true_corrections': all_true_deltas,
+            'guesses': all_guess_pose,
+            'pose_features': all_pose_features,
+            'mask_times': all_mask_time
+            }
+        
+        if self.transform is not None:
+            sample = self.transform(sample)
+        
+        return samples
+    
+    def process_sample(self, data):
+        _data0 = data.iloc[0]
+        gpsweek, tow = datetime_to_tow(pd.to_datetime(_data0['timestamp']))
+        
+        true_XYZb = np.array([_data0['gt_x'], _data0['gt_y'], _data0['gt_z'], _data0['gt_b'], _data0['gt_vx'], _data0['gt_vy'], _data0['gt_vz'], _data0['gt_vb']])
+        
+        guess_XYZb = add_noise(true_XYZb, self.guess_range, self.rng)
+        
+        ref_local, guess_NEDb, true_NEDb = data_ecef2ned(guess_XYZb, true_XYZb)
+        
+        satXYZ = data[['sv_x', 'sv_y', 'sv_z']].to_numpy()
+        satV = data[['sv_vx', 'sv_vy', 'sv_vz']].to_numpy()
+        prange_corr = data['prange_corr'].to_numpy()
+        
+        expected_prange, expected_doppler = expected_measures_minimal(guess_XYZb[:3], guess_XYZb[3], guess_XYZb[7], guess_XYZb[4:7], satXYZ, satV, prange_corr)
+        
+        prange = data['prange'].to_numpy()
+        doppler = data['doppler'].to_numpy()
+        
+        features = res_los_features(prange, expected_prange, satXYZ, guess_XYZb, ref_local)
+        
+        return features, guess_XYZb, ref_local, true_NEDb - guess_NEDb, tow
+        
+        
