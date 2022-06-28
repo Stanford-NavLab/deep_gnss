@@ -17,5 +17,6 @@ docs/ION*
 *.ipynb
 src/simple_problems
 notebooks/.ipynb_checkpoints/*
+!notebooks/.gitkeep
 *.out
 .python-version
