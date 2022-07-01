@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "gnss_lib"
+version = "0.1.0"
+description = ""
+authors = ["Shubh Gupta <shubhg1996@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+pandas = "^1.2.3"
+seaborn = "^0.11.1"
+jupyter = "^1.0.0"
+georinex = "^1.15.0"
+unlzw3 = "^0.2.1"
+NavPy = "^1.0"
+scikit-learn = "^0.24.1"
+gmplot = "^1.4.1"
+pynmea2 = "^1.17.0"
+torch = "^1.8.1"
+hydra-core = "^1.1.0"
+tqdm = "^4.61.2"
+
+[tool.poetry.dev-dependencies]
+pytest = "^5.2"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
