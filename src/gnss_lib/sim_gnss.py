@@ -93,7 +93,7 @@ def expected_measures_minimal(pos, bias, b_dot, vel, satXYZ, satV, prange_corr):
     GPSconstants = gpsconsts()
     delXYZ, true_range = _find_delxyz_range_np(satXYZ, pos, len(satXYZ))
     
-    prange = true_range + prange_corr
+    prange = true_range + prange_corr + bias
     # satXYZ, satV, delXYZ are both Nx3
     # Obtain corrected pseudoranges and add receiver clock bias to them
     # Obtain difference of velocity between satellite and receiver
