@@ -238,7 +238,8 @@ def res_los_features(prange, expected_prange, satXYZ, guess_XYZb, ref_local):
     los_vector = (satXYZ - guess_XYZb[None, :3])
     norm = np.fmax(1.0, np.linalg.norm(los_vector, axis=1))
     los_vector = los_vector / norm[:, None]
-    los_vector = ref_local.ecef2nedv(los_vector)
+    
+    los_vector = los_vector @ ref_local.ned2ecef_matrix
     
     retval = np.zeros((len(residual), 4))
     retval[:, 0] = residual

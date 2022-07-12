@@ -126,7 +126,7 @@ class Sim_GNSS_Dataset_Seq(Dataset):
         
         true_XYZb = np.array([_data0['gt_x'], _data0['gt_y'], _data0['gt_z'], _data0['gt_b'], _data0['gt_vx'], _data0['gt_vy'], _data0['gt_vz'], _data0['gt_vb']])
         
-        guess_XYZb = add_noise(true_XYZb, self.guess_range, self.rng, ntype='corner')
+        guess_XYZb = add_noise(true_XYZb, self.guess_range, self.rng, ntype='uniform')
         
         ref_local, guess_NEDb, true_NEDb = data_ecef2ned(guess_XYZb, true_XYZb)
         
@@ -141,6 +141,6 @@ class Sim_GNSS_Dataset_Seq(Dataset):
         
         features = res_los_features(prange, expected_prange, satXYZ, guess_XYZb, ref_local)
         
-        return features, guess_XYZb, ref_local, np.sign(true_NEDb - guess_NEDb), tow
+        return features, guess_XYZb, ref_local, true_NEDb - guess_NEDb, tow
         
         
