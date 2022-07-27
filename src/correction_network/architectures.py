@@ -108,6 +108,61 @@ class LearnedWLS(torch.nn.Module):
         out = torch.bmm(WA_inv, Wr).squeeze(-1)
         
         return out
+
+"""
+Learned WLS embeddings
+(elements, batch, dim_in) -> (batch, dim_out) [Flip elements and batch if batch_first = True]
+"""
+class LearnedWLSEmbeddings(torch.nn.Module):
+    def __init__(self, A_hidden_dims=[4, 4, 4], b_hidden_dims=[4, 4, 4], decoder_hidden_dims=[16, 16, 4], embedding_dim=64, output_dim=4, batch_first=False):
+        super().__init__()
+        
+        # Satellite A matrix
+        self.A_Net = make_fc(4, A_hidden_dims, embedding_dim)
+        
+        # Measurement b vector
+        self.b_Net = make_fc(4, b_hidden_dims, 1)
+        
+        # Inducing points
+        self.Z = nn.Parameter(torch.Tensor(1, embedding_dim))
+        nn.init.xavier_uniform_(self.Z)
+        
+        # Decoder
+        self.dec = make_fc(embedding_dim+4, decoder_hidden_dims, output_dim)
+        
+        self.batch_first = batch_first
+        
+    def forward(self, x, pad_mask):
+        if not self.batch_first:
+            x = x.transpose(1, 0, 2)
+        B, M, dim = x.shape
+        
+        A_base = torch.cat((-1*x[:, :, 1:4], torch.ones(B, M, 1).cuda()), -1)
+        r_base = x[:, :, 0].unsqueeze(-1)
+        
+        A_net = self.A_Net(x)
+        r_net = self.b_Net(x)
+        
+        A_base_T = torch.transpose(A_base, 1, 2)
+        A_net_T = torch.transpose(A_net, 1, 2)
+        
+        A_11_inv = torch.inverse(A_base_T @ A_base)
+        A_12 = A_base_T @ A_net
+        A_21 = A_net_T @ A_base
+        
+        # Z = torch.diag_embed(self.Z.repeat(B, 1))   # Learned inducing points
+        Z = torch.inverse(torch.diag_embed(self.Z.repeat(B, 1)) + (A_net_T @ A_net - A_21 @ A_11_inv @ A_12).detach())    # Analytical term
+        
+        term1 = (A_11_inv + A_11_inv @ A_12 @ Z @ A_21 @ A_11_inv) @ A_base_T - A_11_inv @ A_12 @ Z @ A_net_T
+        term2 = -Z @ A_21 @ A_11_inv @ A_base_T + Z @ A_net_T
+        
+        A_inv = torch.cat((term1, term2), 1)
+        r = r_base + r_net
+        
+        embedding = torch.bmm(A_inv, r).squeeze(-1)
+        out = self.dec(embedding) + embedding[:, :4]
+        
+        return out    
     
 """
 Learned WLS Set Transformer
@@ -199,3 +254,17 @@ class LearnedWLSSetTransformerCorrection(torch.nn.Module):
         out += corrections
         
         return out
+    
+###########################################################################################################################
+# Utility functions
+###########################################################################################################################
+
+def make_fc(input_dim, hidden_dims, output_dim, activation=nn.ReLU()):
+    layers = [nn.Linear(input_dim, hidden_dims[0]), activation]
+
+    for i in range(1, len(hidden_dims)):
+        layers += [nn.Linear(hidden_dims[i-1], hidden_dims[i]), activation]
+
+    layers += [nn.Linear(hidden_dims[-1], output_dim)]
+
+    return nn.Sequential(*layers)
