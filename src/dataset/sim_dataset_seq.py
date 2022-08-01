@@ -43,12 +43,30 @@ class Sim_GNSS_Dataset_Seq(Dataset):
     def __len__(self):
         return int(self.N_total)
     
+    # Caching for efficiency
+    def get_data(self, traj_idx, chunk_idx, seed_idx, t_idx):
+        # Cache based manager of data files
+        if not hasattr(self, 'cache_data'):
+            self.cache_data = dict()
+        key = hash((traj_idx, chunk_idx, seed_idx, t_idx))
+        # Load Trajectory file
+        if key in self.cache_data.keys():
+            data = self.cache_data[key]
+        else:
+            filepath = self.file_paths.loc[traj_idx, chunk_idx, seed_idx, t_idx]
+            data = pd.read_hdf(filepath.item(), 'new_data')
+            
+            if len(self.cache_data) >= self.max_open_files:
+                pop_key = list(self.cache_data.keys())[0]
+                self.cache_data.pop(pop_key)
+            self.cache_data[key] = data
+        
+        return data
+    
     def __getitem__(self, idx):
         traj_idx, chunk_idx, seed_idx, t_idx = self.indices[idx]
         
-        
-        filepath = self.file_paths.loc[traj_idx, chunk_idx, seed_idx, t_idx]
-        data = pd.read_hdf(filepath.item(), 'new_data')
+        data = self.get_data(traj_idx, chunk_idx, seed_idx, t_idx)
 
         sv_features, guess_XYZb_base, ref_local_base, true_delta, tow_base = self.process_sample(data)
         
@@ -56,32 +74,34 @@ class Sim_GNSS_Dataset_Seq(Dataset):
         all_pose_features = [np.zeros(4)]
         all_true_deltas = [true_delta[:4]]
         all_guess_pose = [guess_XYZb_base[:4]]
-        
+        all_lengths = [len(sv_features)]
         all_mask_time = [True]
         
-        for timestep in range(t_idx, t_idx - self.history, -1):
+        for timestep in range(t_idx-1, t_idx - self.history-1, -1):
             if timestep<0:
                 sv_features = np.zeros((1, self.sv_feature_dim))
                 guess_XYZb = np.zeros(8)
                 ref_local = None
                 pose_delta = np.zeros(5)
                 true_delta = np.zeros(8)
+                length = 0
                 mask_time = False
             else:
-                filepath = self.file_paths.loc[traj_idx, chunk_idx, seed_idx, timestep]
-                data = pd.read_hdf(filepath.item(), 'new_data')
+                data = self.get_data(traj_idx, chunk_idx, seed_idx, timestep)
 
                 sv_features, guess_XYZb, ref_local, true_delta, tow = self.process_sample(data)
                 pose_delta = np.zeros(5)
                 pose_delta[:3] = ref_local.ecef2nedv(guess_XYZb[:3] - guess_XYZb_base[:3])
                 pose_delta[3] = guess_XYZb[3] - guess_XYZb_base[3]
                 pose_delta[4] = tow - tow_base
+                length = len(sv_features)
                 mask_time = True
                 
             all_sv_features.append(sv_features)
             all_pose_features.append(pose_delta)
             all_true_deltas.append(true_delta[:4])
             all_guess_pose.append(guess_XYZb[:4])
+            all_lengths.append(length)
             all_mask_time.append(mask_time)
             
         samples = {
@@ -89,11 +109,14 @@ class Sim_GNSS_Dataset_Seq(Dataset):
             'true_corrections': all_true_deltas,
             'guesses': all_guess_pose,
             'pose_features': all_pose_features,
+            'length': all_lengths,
             'mask_times': all_mask_time
             }
         
+        samples = {key: [torch.tensor(a) for a in samples[key]] for key in samples}
+        
         if self.transform is not None:
-            sample = self.transform(sample)
+            samples = self.transform(samples)
         
         return samples
     
@@ -103,7 +126,7 @@ class Sim_GNSS_Dataset_Seq(Dataset):
         
         true_XYZb = np.array([_data0['gt_x'], _data0['gt_y'], _data0['gt_z'], _data0['gt_b'], _data0['gt_vx'], _data0['gt_vy'], _data0['gt_vz'], _data0['gt_vb']])
         
-        guess_XYZb = add_noise(true_XYZb, self.guess_range, self.rng)
+        guess_XYZb = add_noise(true_XYZb, self.guess_range, self.rng, ntype='uniform')
         
         ref_local, guess_NEDb, true_NEDb = data_ecef2ned(guess_XYZb, true_XYZb)
         
