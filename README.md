@@ -7,7 +7,7 @@ Code repository accompanying our work on 'Improving GNSS Positioning using Neura
 ## Installation Instructions
 This code was developed in a `conda` environment running on CentOS 7.9.2009 in Sherlock, Stanford University's HPC. 
 
-To create the `conda` environment, use `conda env create -f deep-gnss.yml`
+To create the `conda` environment, use `conda env create -f environment.yml`
 
 
 ## Code Overview
