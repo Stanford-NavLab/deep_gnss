@@ -2,7 +2,7 @@
 # Author(s):    Shubh Gupta
 # Date:         21 September 2021
 # Desc:         Coordinate conversion calculations
-#               Code borrows from https://github.com/commaai/laika 
+#               Code borrows from https://github.com/commaai/laika
 ########################################################################
 import numpy as np
 
@@ -16,8 +16,18 @@ def geodetic2ecef(geodetic, radians=False):
   geodetic = np.array(geodetic)
   input_shape = geodetic.shape
   geodetic = np.atleast_2d(geodetic)
-
   ratio = 1.0 if radians else (np.pi / 180.0)
+  if input_shape[0]==3:
+      lat = ratio*geodetic[0,:]
+      lon = ratio*geodetic[1,:]
+      alt = geodetic[2,:]
+  elif input_shape[1]==3:
+      lat = ratio*geodetic[:,0]
+      lon = ratio*geodetic[:,1]
+      alt = geodetic[:,2]
+  else:  # pragma: no cover
+      raise ValueError('geodetic is incorrect shape ', geodetic.shape,
+                      ' should be (N,3) or (3,N)')
   lat = ratio*geodetic[:,0]
   lon = ratio*geodetic[:,1]
   alt = geodetic[:,2]
@@ -27,7 +37,9 @@ def geodetic2ecef(geodetic, radians=False):
   y = (a / xi + alt) * np.cos(lat) * np.sin(lon)
   z = (a / xi * (1 - esq) + alt) * np.sin(lat)
   ecef = np.array([x, y, z]).T
-  return ecef.reshape(input_shape)
+  if input_shape[0]==3:
+    ecef = ecef.T
+  return ecef
 
 
 def ecef2geodetic(ecef, radians=False):
@@ -38,7 +50,10 @@ def ecef2geodetic(ecef, radians=False):
   ecef = np.atleast_1d(ecef)
   input_shape = ecef.shape
   ecef = np.atleast_2d(ecef)
-  x, y, z = ecef[:, 0], ecef[:, 1], ecef[:, 2]
+  if input_shape[0]==3:
+    x, y, z = ecef[0, :], ecef[1, :], ecef[2, :]
+  elif input_shape[1]==3:
+    x, y, z = ecef[:, 0], ecef[:, 1], ecef[:, 2]
 
   ratio = 1.0 if radians else (180.0 / np.pi)
 
@@ -63,7 +78,9 @@ def ecef2geodetic(ecef, radians=False):
 
   # stack the new columns and return to the original shape
   geodetic = np.column_stack((lat, lon, h))
-  return geodetic.reshape(input_shape)
+  if input_shape[0]==3:
+      geodetic = np.row_stack((lat, lon, h))
+  return geodetic
 
 class LocalCoord(object):
   """
@@ -97,7 +114,8 @@ class LocalCoord(object):
         return_vect =  np.matmul(self.ecef2ned_matrix, (ecef - np.reshape(self.init_ecef, [3, -1])))
     elif input_shape[1]==3:
         return_vect = np.matmul(self.ecef2ned_matrix, (ecef.T - np.reshape(self.init_ecef, [3, -1])))
-    return np.reshape(return_vect, input_shape)
+        return_vect = return_vect.T
+    return return_vect
 
   def ecef2nedv(self, ecef):
     ecef = np.array(ecef)
@@ -107,7 +125,8 @@ class LocalCoord(object):
         return_vect =  np.matmul(self.ecef2ned_matrix, ecef)
     elif input_shape[1]==3:
         return_vect = np.matmul(self.ecef2ned_matrix, ecef.T)
-    return np.reshape(return_vect, input_shape)
+        return_vect = return_vect.T
+    return return_vect
 
   def ned2ecef(self, ned):
     ned = np.array(ned)
@@ -132,7 +151,7 @@ class LocalCoord(object):
       return_vect = np.matmul(self.ned2ecef_matrix, ned.T)
       return return_vect.T
     # return np.reshape(return_vect, input_shape)
-    
+
   def geodetic2ned(self, geodetic):
     ecef = geodetic2ecef(geodetic)
     return self.ecef2ned(ecef)
