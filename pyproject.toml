@@ -18,6 +18,7 @@ pynmea2 = "^1.17.0"
 torch = "^1.8.1"
 hydra-core = "^1.1.0"
 tqdm = "^4.61.2"
+tables = "^3.7.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"

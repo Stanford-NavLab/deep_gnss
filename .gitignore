@@ -1,3 +1,6 @@
+# Ignore data added after initial setup
+data
+
 ION*
 .vs/
 *.pyc
