@@ -114,14 +114,22 @@ Learned WLS embeddings
 (elements, batch, dim_in) -> (batch, dim_out) [Flip elements and batch if batch_first = True]
 """
 class LearnedWLSEmbeddings(torch.nn.Module):
-    def __init__(self, A_hidden_dims=[4, 4, 4], b_hidden_dims=[4, 4, 4], decoder_hidden_dims=[16, 16, 4], embedding_dim=64, output_dim=4, batch_first=False):
+    def __init__(self, input_dim=4+5+1, A_hidden_dims=[4, 4, 4], b_hidden_dims=[4, 4, 4], decoder_hidden_dims=[16, 16, 4], embedding_dim=64, output_dim=4, batch_first=False, output_residual=False):
         super().__init__()
         
+        self.output_residual = output_residual
+        
+        self.output_dim = output_dim
+        if not output_residual:
+            output_dim -= 4
+        
+        self.input_dim = input_dim
+        
         # Satellite A matrix
-        self.A_Net = make_fc(4, A_hidden_dims, embedding_dim)
+        self.A_Net = make_fc(input_dim, A_hidden_dims, embedding_dim)
         
         # Measurement b vector
-        self.b_Net = make_fc(4, b_hidden_dims, 1)
+        self.b_Net = make_fc(input_dim, b_hidden_dims, 1)
         
         # Inducing points
         self.Z = nn.Parameter(torch.Tensor(1, embedding_dim))
@@ -132,12 +140,22 @@ class LearnedWLSEmbeddings(torch.nn.Module):
         
         self.batch_first = batch_first
         
-    def forward(self, x, pad_mask):
+    def forward(self, x, pad_mask, mask_batches=None):
+        x = torch.cat((x, torch.unsqueeze( torch.bitwise_not(pad_mask).float(), -1)), -1)
+        
         if not self.batch_first:
             x = x.transpose(1, 0, 2)
         B, M, dim = x.shape
         
-        A_base = torch.cat((-1*x[:, :, 1:4], torch.ones(B, M, 1).cuda()), -1)
+        if mask_batches is None:
+            mask_batches = torch.ones(B, dtype=torch.bool)
+        
+        out_all = torch.zeros(B, self.output_dim).cuda()
+        
+        x = x[mask_batches, :, :]
+        B_new = x.shape[0]
+        
+        A_base = torch.cat((-1*x[:, :, 1:4], torch.ones(B_new, M, 1).cuda()), -1)
         r_base = x[:, :, 0].unsqueeze(-1)
         
         A_net = self.A_Net(x)
@@ -146,12 +164,14 @@ class LearnedWLSEmbeddings(torch.nn.Module):
         A_base_T = torch.transpose(A_base, 1, 2)
         A_net_T = torch.transpose(A_net, 1, 2)
         
+        
         A_11_inv = torch.inverse(A_base_T @ A_base)
+            
         A_12 = A_base_T @ A_net
         A_21 = A_net_T @ A_base
         
-        # Z = torch.diag_embed(self.Z.repeat(B, 1))   # Learned inducing points
-        Z = torch.inverse(torch.diag_embed(self.Z.repeat(B, 1)) + (A_net_T @ A_net - A_21 @ A_11_inv @ A_12).detach())    # Analytical term
+        Z = torch.diag_embed(self.Z.repeat(B_new, 1))   # Learned inducing points
+#         Z = torch.inverse(torch.diag_embed(self.Z.repeat(B_new, 1)) + (A_net_T @ A_net - A_21 @ A_11_inv @ A_12).detach())    # Analytical term
         
         term1 = (A_11_inv + A_11_inv @ A_12 @ Z @ A_21 @ A_11_inv) @ A_base_T - A_11_inv @ A_12 @ Z @ A_net_T
         term2 = -Z @ A_21 @ A_11_inv @ A_base_T + Z @ A_net_T
@@ -159,10 +179,68 @@ class LearnedWLSEmbeddings(torch.nn.Module):
         A_inv = torch.cat((term1, term2), 1)
         r = r_base + r_net
         
-        embedding = torch.bmm(A_inv, r).squeeze(-1)
-        out = self.dec(embedding) + embedding[:, :4]
+        out = torch.bmm(A_inv, r).squeeze(-1)
         
-        return out    
+        if self.output_residual:
+            out = out[:, :4] + self.dec(out)
+        else:
+            out = torch.cat((out[:, :4], self.dec(out)), -1)
+        
+        out_all[mask_batches, :] = out
+        
+        return out_all
+    
+"""
+Learned WLS embeddings w/ RNN
+(elements, batch, time, dim_in) -> (batch, time, dim_out) [Flip elements and batch if batch_first = True]
+"""
+class LearnedWLSEmbeddingsRNN(torch.nn.Module):
+    def __init__(self, timestep_dim=16, batch_first=False, lstm_layers=4, lstm_hidden_dim=16, time_last=False, **kwargs):
+        super().__init__()
+        
+        self.embedding = LearnedWLSEmbeddings(output_dim=timestep_dim, batch_first=batch_first, output_residual=False, **kwargs)
+        
+        self.lstm_layers = lstm_layers
+        self.lstm_hidden_dim = lstm_hidden_dim
+        
+        self.lstm = nn.LSTM(input_size=timestep_dim, hidden_size=lstm_hidden_dim,
+                            num_layers=lstm_layers, batch_first=True)
+        
+        self.fc = nn.Linear(lstm_hidden_dim, 4)
+        
+        self.batch_first = batch_first
+        self.time_last = time_last
+    
+    def init_hidden(self, batch_size):
+        # the weights are of the form (nb_layers, batch_size, nb_lstm_units)
+        hidden_a = torch.randn(self.lstm_layers, batch_size, self.lstm_hidden_dim).cuda()
+        hidden_b = torch.randn(self.lstm_layers, batch_size, self.lstm_hidden_dim).cuda()
+
+        hidden_a = torch.autograd.Variable(hidden_a)
+        hidden_b = torch.autograd.Variable(hidden_b)
+
+        return (hidden_a, hidden_b)
+    
+    def forward(self, x, dxt_feat, pad_mask, mask_times):
+        if not self.batch_first:
+            x = x.transpose(0, 1).transpose(1, 2)
+        else:
+            x = x.transpose(1, 2)
+        B, T, M, dim = x.shape
+        dxt_dim = dxt_feat.shape[1]
+        
+        x = torch.cat((x, dxt_feat.transpose(1, 2).unsqueeze(2).expand(B, T, M, dxt_dim)), -1).reshape(-1, M, dim+dxt_dim)
+        x = self.embedding(x, pad_mask.transpose(2, 1).reshape(-1, M), mask_batches=mask_times.reshape(-1)).reshape(B, T, -1)
+        
+        # Propagate input through LSTM
+        self.hidden = self.init_hidden(B)
+        out, self.hidden = self.lstm(x, self.hidden)
+        
+        out = self.fc(out) + x[:, :, :4]
+        if self.time_last:
+            out = out.transpose(2, 1)
+        return out
+        
     
 """
 Learned WLS Set Transformer
