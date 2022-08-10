@@ -52,115 +52,6 @@ class FullyConnectedNetwork(torch.nn.Module):
    
     
 """
-RNN w/ Learned GNSS Embeddinbgs
-(elements, batch, time, dim_in) -> (batch, time, dim_out) [Flip elements and batch if batch_first = True]
-"""
-class LearnedEmbeddingsRNN(torch.nn.Module):
-    def __init__(self, embedding, timestep_dim=16, batch_first=False, lstm_layers=4, lstm_hidden_dim=16, time_last=False, **kwargs):
-        super().__init__()
-        
-        self.embedding = embedding
-        
-        self.lstm_layers = lstm_layers
-        self.lstm_hidden_dim = lstm_hidden_dim
-        
-        self.fc_dxt = make_fc(timestep_dim+5+3*2, [timestep_dim, timestep_dim], timestep_dim)
-        
-        self.lstm = nn.LSTM(input_size=timestep_dim, hidden_size=lstm_hidden_dim,
-                            num_layers=lstm_layers, batch_first=True)
-        
-        self.fc = make_fc(lstm_hidden_dim, [lstm_hidden_dim, lstm_hidden_dim//2], 4)
-        
-        self.batch_first = batch_first
-        self.time_last = time_last
-    
-    def init_hidden(self, batch_size):
-        # the weights are of the form (nb_layers, batch_size, nb_lstm_units)
-        hidden_a = torch.randn(self.lstm_layers, batch_size, self.lstm_hidden_dim).cuda()
-        hidden_b = torch.randn(self.lstm_layers, batch_size, self.lstm_hidden_dim).cuda()
-
-        hidden_a = torch.autograd.Variable(hidden_a)
-        hidden_b = torch.autograd.Variable(hidden_b)
-
-        return (hidden_a, hidden_b)
-    
-    def forward(self, x, dxt_feat, pad_mask, mask_times):
-        if not self.batch_first:
-            x = x.transpose(0, 1).transpose(1, 2)
-        else:
-            x = x.transpose(1, 2)
-        B, T, M, dim = x.shape
-        dxt_dim = dxt_feat.shape[1]
-        
-        x = self.embedding(x.reshape(-1, M, dim), pad_mask.transpose(2, 1).reshape(-1, M), mask_batches=mask_times.reshape(-1)).reshape(B, T, -1)
-        x = torch.cat((x, dxt_feat.transpose(1, 2)), -1)
-        out = self.fc_dxt(x)
-        
-        # Propagate input through LSTM
-        self.hidden = self.init_hidden(B)
-        out, self.hidden = self.lstm(out, self.hidden)
-        
-        out = self.fc(out) + x[:, :, :4]
-        if self.time_last:
-            out = out.transpose(2, 1)
-        return out
-    
-"""
-Fully Connected embeddings w/ RNN
-(elements, batch, time, dim_in) -> (batch, time, dim_out) [Flip elements and batch if batch_first = True]
-"""
-class FullyConnectedEmbeddingsRNN(torch.nn.Module):
-    def __init__(self, timestep_dim=16, batch_first=False, lstm_layers=4, lstm_hidden_dim=16, time_last=False, **kwargs):
-        super().__init__()
-        
-        self.embedding = FullyConnectedNetwork(dim_input=4, max_sats=10, dim_output=timestep_dim, batch_first=batch_first, **kwargs)
-        
-        self.lstm_layers = lstm_layers
-        self.lstm_hidden_dim = lstm_hidden_dim
-        
-        self.fc_dxt = make_fc(timestep_dim+5+3*2, [timestep_dim, timestep_dim], timestep_dim)
-        
-        self.lstm = nn.LSTM(input_size=timestep_dim, hidden_size=lstm_hidden_dim,
-                            num_layers=lstm_layers, batch_first=True)
-        
-        self.fc = make_fc(lstm_hidden_dim, [lstm_hidden_dim, lstm_hidden_dim//2], 4)
-        
-        self.batch_first = batch_first
-        self.time_last = time_last
-    
-    def init_hidden(self, batch_size):
-        # the weights are of the form (nb_layers, batch_size, nb_lstm_units)
-        hidden_a = torch.randn(self.lstm_layers, batch_size, self.lstm_hidden_dim).cuda()
-        hidden_b = torch.randn(self.lstm_layers, batch_size, self.lstm_hidden_dim).cuda()
-
-        hidden_a = torch.autograd.Variable(hidden_a)
-        hidden_b = torch.autograd.Variable(hidden_b)
-
-        return (hidden_a, hidden_b)
-    
-    def forward(self, x, dxt_feat, pad_mask, mask_times):
-        if not self.batch_first:
-            x = x.transpose(0, 1).transpose(1, 2)
-        else:
-            x = x.transpose(1, 2)
-        B, T, M, dim = x.shape
-        dxt_dim = dxt_feat.shape[1]
-        
-        x = self.embedding(x.reshape(-1, M, dim), pad_mask.transpose(2, 1).reshape(-1, M), mask_batches=mask_times.reshape(-1)).reshape(B, T, -1)
-        x = torch.cat((x, dxt_feat.transpose(1, 2)), -1)
-        out = self.fc_dxt(x)
-        
-        # Propagate input through LSTM
-        self.hidden = self.init_hidden(B)
-        out, self.hidden = self.lstm(out, self.hidden)
-        
-        out = self.fc(out) + x[:, :, :4]
-        if self.time_last:
-            out = out.transpose(2, 1)
-        return out
-
-
-"""
 Basic Least Squares
 (elements, batch, dim_in) -> (batch, dim_out) [Flip elements and batch if batch_first = True]
 """
@@ -301,61 +192,7 @@ class LearnedWLSEmbeddings(torch.nn.Module):
         
         return out_all
     
-"""
-Learned WLS embeddings w/ RNN
-(elements, batch, time, dim_in) -> (batch, time, dim_out) [Flip elements and batch if batch_first = True]
-"""
-class LearnedWLSEmbeddingsRNN(torch.nn.Module):
-    def __init__(self, timestep_dim=16, batch_first=False, lstm_layers=4, lstm_hidden_dim=16, time_last=False, **kwargs):
-        super().__init__()
-        
-        self.embedding = LearnedWLSEmbeddings(output_dim=timestep_dim, batch_first=batch_first, output_residual=False, **kwargs)
-        
-        self.lstm_layers = lstm_layers
-        self.lstm_hidden_dim = lstm_hidden_dim
-        
-        self.fc_dxt = make_fc(timestep_dim+5+3*2, [timestep_dim, timestep_dim], timestep_dim)
-        
-        self.lstm = nn.LSTM(input_size=timestep_dim, hidden_size=lstm_hidden_dim,
-                            num_layers=lstm_layers, batch_first=True)
-        
-        self.fc = make_fc(lstm_hidden_dim, [lstm_hidden_dim, lstm_hidden_dim//2], 4)
-        
-        self.batch_first = batch_first
-        self.time_last = time_last
-    
-    def init_hidden(self, batch_size):
-        # the weights are of the form (nb_layers, batch_size, nb_lstm_units)
-        hidden_a = torch.randn(self.lstm_layers, batch_size, self.lstm_hidden_dim).cuda()
-        hidden_b = torch.randn(self.lstm_layers, batch_size, self.lstm_hidden_dim).cuda()
 
-        hidden_a = torch.autograd.Variable(hidden_a)
-        hidden_b = torch.autograd.Variable(hidden_b)
-
-        return (hidden_a, hidden_b)
-    
-    def forward(self, x, dxt_feat, pad_mask, mask_times):
-        if not self.batch_first:
-            x = x.transpose(0, 1).transpose(1, 2)
-        else:
-            x = x.transpose(1, 2)
-        B, T, M, dim = x.shape
-        dxt_dim = dxt_feat.shape[1]
-        
-        x = self.embedding(x.reshape(-1, M, dim), pad_mask.transpose(2, 1).reshape(-1, M), mask_batches=mask_times.reshape(-1)).reshape(B, T, -1)
-        x = torch.cat((x, dxt_feat.transpose(1, 2)), -1)
-        out = self.fc_dxt(x)
-        
-        # Propagate input through LSTM
-        self.hidden = self.init_hidden(B)
-        out, self.hidden = self.lstm(out, self.hidden)
-        
-        out = self.fc(out) + x[:, :, :4]
-        if self.time_last:
-            out = out.transpose(2, 1)
-        return out
-        
-    
 """
 Learned WLS Set Transformer
 (elements, batch, dim_in) -> (batch, dim_out) [Flip elements and batch if batch_first = True]
@@ -446,6 +283,98 @@ class LearnedWLSSetTransformerCorrection(torch.nn.Module):
         out += corrections
         
         return out
+
+###########################################################################################################################
+# Snapshot architectures
+###########################################################################################################################    
+    
+"""
+Snapshot w/ Learned GNSS Embeddinbgs
+(elements, batch, time, dim_in) -> (batch, time, dim_out) [Flip elements and batch if batch_first = True]
+"""
+class LearnedEmbeddingsSnapshot(torch.nn.Module):
+    def __init__(self, embedding, embedding_dim=16, output_dim=4, batch_first=False, time_last=False, **kwargs):
+        super().__init__()
+        
+        self.embedding = embedding
+        
+        self.fc = make_fc(embedding_dim, [embedding_dim, embedding_dim//2], output_dim)
+        
+        self.batch_first = batch_first
+        self.time_last = time_last
+        
+    def forward(self, x, dxt_feat, pad_mask, mask_times):
+        if not self.batch_first:
+            x = x.transpose(0, 1).transpose(1, 2)
+        else:
+            x = x.transpose(1, 2)
+        B, T, M, dim = x.shape
+        
+        x = self.embedding(x.reshape(-1, M, dim), pad_mask.transpose(2, 1).reshape(-1, M), mask_batches=mask_times.reshape(-1)).reshape(B, T, -1)
+        out = self.fc(x) + x[:, :, :4]
+        if self.time_last:
+            out = out.transpose(2, 1)
+        return out    
+    
+###########################################################################################################################
+# Sequential architectures
+###########################################################################################################################
+    
+"""
+RNN w/ Learned GNSS Embeddinbgs
+(elements, batch, time, dim_in) -> (batch, time, dim_out) [Flip elements and batch if batch_first = True]
+"""
+class LearnedEmbeddingsRNN(torch.nn.Module):
+    def __init__(self, embedding, timestep_dim=16, batch_first=False, lstm_layers=4, lstm_hidden_dim=16, time_last=False, **kwargs):
+        super().__init__()
+        
+        self.embedding = embedding
+        
+        self.lstm_layers = lstm_layers
+        self.lstm_hidden_dim = lstm_hidden_dim
+        
+        self.fc_dxt = make_fc(timestep_dim+5+3*2, [timestep_dim, timestep_dim], timestep_dim)
+        
+        self.lstm = nn.LSTM(input_size=timestep_dim, hidden_size=lstm_hidden_dim,
+                            num_layers=lstm_layers, batch_first=True)
+        
+        self.fc = make_fc(lstm_hidden_dim, [lstm_hidden_dim, lstm_hidden_dim//2], 4)
+        
+        self.batch_first = batch_first
+        self.time_last = time_last
+        self.hidden = self.init_hidden(1)
+    
+    def init_hidden(self, batch_size):
+        # the weights are of the form (nb_layers, batch_size, nb_lstm_units)
+        hidden_a = torch.randn(self.lstm_layers, batch_size, self.lstm_hidden_dim).cuda()
+        hidden_b = torch.randn(self.lstm_layers, batch_size, self.lstm_hidden_dim).cuda()
+
+        hidden_a = torch.autograd.Variable(hidden_a)
+        hidden_b = torch.autograd.Variable(hidden_b)
+
+        return (hidden_a, hidden_b)
+    
+    def forward(self, x, dxt_feat, pad_mask, mask_times):
+        if not self.batch_first:
+            x = x.transpose(0, 1).transpose(1, 2)
+        else:
+            x = x.transpose(1, 2)
+        B, T, M, dim = x.shape
+        dxt_dim = dxt_feat.shape[1]
+        
+        x = self.embedding(x.reshape(-1, M, dim), pad_mask.transpose(2, 1).reshape(-1, M), mask_batches=mask_times.reshape(-1)).reshape(B, T, -1)
+        x = torch.cat((x, dxt_feat.transpose(1, 2)), -1)
+        out = self.fc_dxt(x)
+        
+        # Propagate input through LSTM
+        # if self.training:
+        self.hidden = self.init_hidden(B)
+        out, self.hidden = self.lstm(out, self.hidden)
+        
+        out = self.fc(out) + x[:, :, :4]
+        if self.time_last:
+            out = out.transpose(2, 1)
+        return out    
     
 ###########################################################################################################################
 # Utility functions
