@@ -32,7 +32,7 @@ class FullyConnectedNetwork(torch.nn.Module):
         self.batch_first = batch_first
         self.max_sats = max_sats
 
-    def forward(self, x, pad_mask):
+    def forward(self, x, pad_mask, mask_batches=None):
         x = torch.cat((x, torch.unsqueeze( torch.bitwise_not(pad_mask).float(), -1)), -1)
         
         if not self.batch_first:
@@ -46,8 +46,119 @@ class FullyConnectedNetwork(torch.nn.Module):
         x = self.feat_in(x)
         x = self.enc(x)
         out = self.feat_out(x)
+        if mask_batches is not None:
+            out[torch.bitwise_not(mask_batches), :] = 0.0
         return out
    
+    
+"""
+RNN w/ Learned GNSS Embeddinbgs
+(elements, batch, time, dim_in) -> (batch, time, dim_out) [Flip elements and batch if batch_first = True]
+"""
+class LearnedEmbeddingsRNN(torch.nn.Module):
+    def __init__(self, embedding, timestep_dim=16, batch_first=False, lstm_layers=4, lstm_hidden_dim=16, time_last=False, **kwargs):
+        super().__init__()
+        
+        self.embedding = embedding
+        
+        self.lstm_layers = lstm_layers
+        self.lstm_hidden_dim = lstm_hidden_dim
+        
+        self.fc_dxt = make_fc(timestep_dim+5+3*2, [timestep_dim, timestep_dim], timestep_dim)
+        
+        self.lstm = nn.LSTM(input_size=timestep_dim, hidden_size=lstm_hidden_dim,
+                            num_layers=lstm_layers, batch_first=True)
+        
+        self.fc = make_fc(lstm_hidden_dim, [lstm_hidden_dim, lstm_hidden_dim//2], 4)
+        
+        self.batch_first = batch_first
+        self.time_last = time_last
+    
+    def init_hidden(self, batch_size):
+        # the weights are of the form (nb_layers, batch_size, nb_lstm_units)
+        hidden_a = torch.randn(self.lstm_layers, batch_size, self.lstm_hidden_dim).cuda()
+        hidden_b = torch.randn(self.lstm_layers, batch_size, self.lstm_hidden_dim).cuda()
+
+        hidden_a = torch.autograd.Variable(hidden_a)
+        hidden_b = torch.autograd.Variable(hidden_b)
+
+        return (hidden_a, hidden_b)
+    
+    def forward(self, x, dxt_feat, pad_mask, mask_times):
+        if not self.batch_first:
+            x = x.transpose(0, 1).transpose(1, 2)
+        else:
+            x = x.transpose(1, 2)
+        B, T, M, dim = x.shape
+        dxt_dim = dxt_feat.shape[1]
+        
+        x = self.embedding(x.reshape(-1, M, dim), pad_mask.transpose(2, 1).reshape(-1, M), mask_batches=mask_times.reshape(-1)).reshape(B, T, -1)
+        x = torch.cat((x, dxt_feat.transpose(1, 2)), -1)
+        out = self.fc_dxt(x)
+        
+        # Propagate input through LSTM
+        self.hidden = self.init_hidden(B)
+        out, self.hidden = self.lstm(out, self.hidden)
+        
+        out = self.fc(out) + x[:, :, :4]
+        if self.time_last:
+            out = out.transpose(2, 1)
+        return out
+    
+"""
+Fully Connected embeddings w/ RNN
+(elements, batch, time, dim_in) -> (batch, time, dim_out) [Flip elements and batch if batch_first = True]
+"""
+class FullyConnectedEmbeddingsRNN(torch.nn.Module):
+    def __init__(self, timestep_dim=16, batch_first=False, lstm_layers=4, lstm_hidden_dim=16, time_last=False, **kwargs):
+        super().__init__()
+        
+        self.embedding = FullyConnectedNetwork(dim_input=4, max_sats=10, dim_output=timestep_dim, batch_first=batch_first, **kwargs)
+        
+        self.lstm_layers = lstm_layers
+        self.lstm_hidden_dim = lstm_hidden_dim
+        
+        self.fc_dxt = make_fc(timestep_dim+5+3*2, [timestep_dim, timestep_dim], timestep_dim)
+        
+        self.lstm = nn.LSTM(input_size=timestep_dim, hidden_size=lstm_hidden_dim,
+                            num_layers=lstm_layers, batch_first=True)
+        
+        self.fc = make_fc(lstm_hidden_dim, [lstm_hidden_dim, lstm_hidden_dim//2], 4)
+        
+        self.batch_first = batch_first
+        self.time_last = time_last
+    
+    def init_hidden(self, batch_size):
+        # the weights are of the form (nb_layers, batch_size, nb_lstm_units)
+        hidden_a = torch.randn(self.lstm_layers, batch_size, self.lstm_hidden_dim).cuda()
+        hidden_b = torch.randn(self.lstm_layers, batch_size, self.lstm_hidden_dim).cuda()
+
+        hidden_a = torch.autograd.Variable(hidden_a)
+        hidden_b = torch.autograd.Variable(hidden_b)
+
+        return (hidden_a, hidden_b)
+    
+    def forward(self, x, dxt_feat, pad_mask, mask_times):
+        if not self.batch_first:
+            x = x.transpose(0, 1).transpose(1, 2)
+        else:
+            x = x.transpose(1, 2)
+        B, T, M, dim = x.shape
+        dxt_dim = dxt_feat.shape[1]
+        
+        x = self.embedding(x.reshape(-1, M, dim), pad_mask.transpose(2, 1).reshape(-1, M), mask_batches=mask_times.reshape(-1)).reshape(B, T, -1)
+        x = torch.cat((x, dxt_feat.transpose(1, 2)), -1)
+        out = self.fc_dxt(x)
+        
+        # Propagate input through LSTM
+        self.hidden = self.init_hidden(B)
+        out, self.hidden = self.lstm(out, self.hidden)
+        
+        out = self.fc(out) + x[:, :, :4]
+        if self.time_last:
+            out = out.transpose(2, 1)
+        return out
+
 
 """
 Basic Least Squares
@@ -114,7 +225,7 @@ Learned WLS embeddings
 (elements, batch, dim_in) -> (batch, dim_out) [Flip elements and batch if batch_first = True]
 """
 class LearnedWLSEmbeddings(torch.nn.Module):
-    def __init__(self, input_dim=4+5+1, A_hidden_dims=[4, 4, 4], b_hidden_dims=[4, 4, 4], decoder_hidden_dims=[16, 16, 4], embedding_dim=64, output_dim=4, batch_first=False, output_residual=False):
+    def __init__(self, input_dim=4+1, A_hidden_dims=[4, 4, 4], b_hidden_dims=[4, 4, 4], decoder_hidden_dims=[16, 16, 4], embedding_dim=64, output_dim=4, batch_first=False, output_residual=False):
         super().__init__()
         
         self.output_residual = output_residual
@@ -203,10 +314,12 @@ class LearnedWLSEmbeddingsRNN(torch.nn.Module):
         self.lstm_layers = lstm_layers
         self.lstm_hidden_dim = lstm_hidden_dim
         
+        self.fc_dxt = make_fc(timestep_dim+5+3*2, [timestep_dim, timestep_dim], timestep_dim)
+        
         self.lstm = nn.LSTM(input_size=timestep_dim, hidden_size=lstm_hidden_dim,
                             num_layers=lstm_layers, batch_first=True)
         
-        self.fc = nn.Linear(lstm_hidden_dim, 4)
+        self.fc = make_fc(lstm_hidden_dim, [lstm_hidden_dim, lstm_hidden_dim//2], 4)
         
         self.batch_first = batch_first
         self.time_last = time_last
@@ -229,12 +342,13 @@ class LearnedWLSEmbeddingsRNN(torch.nn.Module):
         B, T, M, dim = x.shape
         dxt_dim = dxt_feat.shape[1]
         
-        x = torch.cat((x, dxt_feat.transpose(1, 2).unsqueeze(2).expand(B, T, M, dxt_dim)), -1).reshape(-1, M, dim+dxt_dim)
-        x = self.embedding(x, pad_mask.transpose(2, 1).reshape(-1, M), mask_batches=mask_times.reshape(-1)).reshape(B, T, -1)
+        x = self.embedding(x.reshape(-1, M, dim), pad_mask.transpose(2, 1).reshape(-1, M), mask_batches=mask_times.reshape(-1)).reshape(B, T, -1)
+        x = torch.cat((x, dxt_feat.transpose(1, 2)), -1)
+        out = self.fc_dxt(x)
         
         # Propagate input through LSTM
         self.hidden = self.init_hidden(B)
-        out, self.hidden = self.lstm(x, self.hidden)
+        out, self.hidden = self.lstm(out, self.hidden)
         
         out = self.fc(out) + x[:, :, :4]
         if self.time_last:
