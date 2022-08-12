@@ -136,8 +136,15 @@ def parse_filepaths(root, verbose=False):
 def parse_filepaths_batched(root, verbose=False):
     # Save file paths
     # TODO: Consider removing duplicate temporary variables for smaller storage footprint
-
-    files = np.sort(os.listdir(root))
+    
+    files = []
+    trace_folders = {}
+    for trace in os.listdir(root):
+        trace_files = os.listdir(os.path.join(root, trace))
+        traj, _, seed, _ = trace_files[0].split('_')
+        trace_folders[traj, seed] = trace
+        files.extend(trace_files)
+    files = np.sort(files)
 
     if verbose:
         print("Creating coordinates...")
@@ -163,7 +170,8 @@ def parse_filepaths_batched(root, verbose=False):
     for file_path in tqdm(files):
         traj_id, chunk_id, seed_id, time_id = filepath_to_idx(file_path)
         time_id = int(time_id)
-        file_paths.loc[traj_id, chunk_id, seed_id, time_id] = os.path.join(root, file_path)
+        trace_name = trace_folders[traj_id, seed_id]
+        file_paths.loc[traj_id, chunk_id, seed_id, time_id] = os.path.join(root, trace_name, file_path)
         new_index = (traj_id, chunk_id, seed_id, time_id)
 
         indices.append(new_index)

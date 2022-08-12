@@ -31,7 +31,7 @@ class Sim_GNSS_Dataset_Seq(Dataset):
         self.max_sats = 0
         self.sv_feature_dim = 4
         
-        file_paths, indices = parse_filepaths_batched(os.path.join(self.root, data_dir), verbose=verbose)
+        file_paths, indices = parse_filepaths_batched(os.path.join(self.root), verbose=verbose)
         
         self.file_paths = file_paths
         

@@ -39,23 +39,37 @@ def parse_directories(root_path, verbose=False):
     return file_paths
 
 def simulated_data(load_path, save_path):
-    pass
+    raise NotImplementedError
 
-def android_data(file_paths, save_root):
+def android_data(file_paths, save_root, verbose=True):
     # Determine dataset type
     rename_func, gps = get_rename_func(file_paths)
+    traj_num = 0
+    trajectories = []
+    chunk_num = 0
+    seed = 0
     for trace_key, paths in file_paths.items():
+        if verbose:
+            print('Saving ', trace_key)
+        traj, phn = trace_key.split('_')
+        if traj not in trajectories:
+            trajectories.append(traj)
+            traj_num += 1
+            phones = [phn]
+            seed = 0
+        else:
+            phones.append(phn)
+            seed += 1
         save_path = os.path.join(save_root, trace_key)
         initialize_dirs(save_path)
         measures = pd.read_csv(paths['measures'])
-        #TODO: Change the following function call
         gt = pd.read_csv(paths['ground_truth'])
         measures, gt = rename_func(measures, gt)
         # print(measures.columns)
         # print(gt.columns)
         file_idx = 0
         #TODO: Replace these as terms that change based on datasets
-        for utc_time, time_measure in tqdm(measures.groupby('utcTimeMillis'), position=1):
+        for utc_time, time_measure in tqdm(measures.groupby('utcTimeMillis')):
             gt_slice = android_find_gt(gt, 'time_millis', utc_time)
             gt_lla = gt_slice[['lat', 'long', 'alt']].to_numpy()
             gt_ecef = geodetic2ecef(gt_lla)
@@ -73,4 +87,19 @@ def android_data(file_paths, save_root):
                                     [1,3,4,5,6],["G","R","Q","B","E"]) \
                                 + time_measure["svid"].astype(str)
             time_measure['gt_b'] = np.squeeze(solve_gt_b(time_measure))
-            time_measure.to_csv(os.path.join(save_path, f"{file_idx:04}" + ".csv"))
+            time_measure['prange_corr'] = np.zeros(len(time_measure))
+            
+            # Currently using zero velocity for receiver, correct with heading later on
+            time_measure['gt_vx'] = np.zeros(len(time_measure))
+            time_measure['gt_vy'] = np.zeros(len(time_measure))
+            time_measure['gt_vz'] = np.zeros(len(time_measure))
+            time_measure['gt_vb'] = np.zeros(len(time_measure))
+            
+            file_name = f"{traj_num:02}" + '_' + str(chunk_num) + '_' + str(seed) + '_' + f"{file_idx:04}"
+            
+            time_measure.to_csv(os.path.join(save_path, file_name + ".csv"))
+            
+            file_idx += 1
+        if verbose:
+            print('Saved ', file_idx, ' files for ', trace_key)
+            print('Final file name ', file_name + ".csv")
