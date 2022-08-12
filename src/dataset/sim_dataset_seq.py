@@ -71,7 +71,10 @@ class Sim_GNSS_Dataset_Seq(Dataset):
         sv_features, guess_XYZb_base, ref_local_base, true_delta, tow_base = self.process_sample(data)
         
         all_sv_features = [sv_features]
-        all_pose_features = [np.zeros(4)]
+        pose_delta = np.zeros(5 + 3*2)
+        pose_delta[5] = 1.0
+        pose_delta[9] = 1.0
+        all_pose_features = [pose_delta]
         all_true_deltas = [true_delta[:4]]
         all_guess_pose = [guess_XYZb_base[:4]]
         all_lengths = [len(sv_features)]
@@ -82,7 +85,7 @@ class Sim_GNSS_Dataset_Seq(Dataset):
                 sv_features = np.zeros((1, self.sv_feature_dim))
                 guess_XYZb = np.zeros(8)
                 ref_local = None
-                pose_delta = np.zeros(5)
+                pose_delta = np.zeros(5 + 3*2)
                 true_delta = np.zeros(8)
                 length = 0
                 mask_time = False
@@ -90,10 +93,20 @@ class Sim_GNSS_Dataset_Seq(Dataset):
                 data = self.get_data(traj_idx, chunk_idx, seed_idx, timestep)
 
                 sv_features, guess_XYZb, ref_local, true_delta, tow = self.process_sample(data)
-                pose_delta = np.zeros(5)
-                pose_delta[:3] = ref_local.ecef2nedv(guess_XYZb[:3] - guess_XYZb_base[:3])
+                pose_delta = np.zeros(5 + 3*2)
+                
+                # Relative pose in the original NED frame
+                pose_delta[:3] = (guess_XYZb[:3] - guess_XYZb_base[:3]) @ ref_local_base.ned2ecef_matrix
                 pose_delta[3] = guess_XYZb[3] - guess_XYZb_base[3]
+                
+                # Relative time from original frame
                 pose_delta[4] = tow - tow_base
+                
+                # Relative rotation between the frames
+                A0_A1 = ref_local_base.ned2ecef_matrix.T @ ref_local.ned2ecef_matrix
+                pose_delta[5:8] = A0_A1[:, 0]
+                pose_delta[8:11] = A0_A1[:, 1]
+                
                 length = len(sv_features)
                 mask_time = True
                 

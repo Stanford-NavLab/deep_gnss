@@ -16,10 +16,7 @@ docs/ION*
 *.out
 .pytest_cache
 *.html
-
-*.ipynb
 src/simple_problems
 notebooks/.ipynb_checkpoints/*
-!notebooks/.gitkeep
 *.out
 .python-version

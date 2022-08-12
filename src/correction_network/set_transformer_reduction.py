@@ -43,7 +43,7 @@ class SetTransformerPointOutput(torch.nn.Module):
                     )
         self.batch_first = batch_first
 
-    def forward(self, x, pad_mask=None):
+    def forward(self, x, pad_mask=None, mask_batches=None):
         x = self.feat_in(x)
         x = self.enc_feat(x)
         x = self.enc(x, pad_mask=pad_mask)
