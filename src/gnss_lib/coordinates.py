@@ -14,8 +14,8 @@ e1sq = 6.73949674228 * 0.001
 
 def geodetic2ecef(geodetic, radians=False):
   geodetic = np.array(geodetic)
-  input_shape = geodetic.shape
   geodetic = np.atleast_2d(geodetic)
+  input_shape = geodetic.shape
   ratio = 1.0 if radians else (np.pi / 180.0)
   if input_shape[0]==3:
       lat = ratio*geodetic[0,:]
@@ -47,9 +47,8 @@ def ecef2geodetic(ecef, radians=False):
   Convert ECEF coordinates to geodetic using ferrari's method
   """
   # Save shape and export column
-  ecef = np.atleast_1d(ecef)
-  input_shape = ecef.shape
   ecef = np.atleast_2d(ecef)
+  input_shape = ecef.shape
   if input_shape[0]==3:
     x, y, z = ecef[0, :], ecef[1, :], ecef[2, :]
   elif input_shape[1]==3:
@@ -90,7 +89,12 @@ class LocalCoord(object):
   """
   def __init__(self, init_geodetic, init_ecef):
     self.init_ecef = init_ecef
-    lat, lon, _ = (np.pi/180)*np.array(init_geodetic)
+    if init_geodetic.shape[0]==3:
+        lat = (np.pi/180.)*init_geodetic[0, 0]
+        lon = (np.pi/180.)*init_geodetic[1, 0]
+    elif init_geodetic.shape[1]==3:
+        lat = (np.pi/180.)*init_geodetic[0, 0]
+        lon = (np.pi/180.)*init_geodetic[0, 1]
     self.ned2ecef_matrix = np.array([[-np.sin(lat)*np.cos(lon), -np.sin(lon), -np.cos(lat)*np.cos(lon)],
                                      [-np.sin(lat)*np.sin(lon), np.cos(lon), -np.cos(lat)*np.sin(lon)],
                                      [np.cos(lat), 0, -np.sin(lat)]])

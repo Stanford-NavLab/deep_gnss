@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
+from gnss_lib.constants import gpsconsts
 from gnss_lib.coordinates import geodetic2ecef
 from utils import initialize_dirs, android_find_gt, solve_gt_b, millis_to_datetime, get_rename_func
 
@@ -41,14 +42,18 @@ def parse_directories(root_path, verbose=False):
 def simulated_data(load_path, save_path):
     raise NotImplementedError
 
-def android_data(file_paths, save_root, verbose=True):
+def android_data(file_paths, save_root, verbose=True, drop_non_L1=True):
+    key_observables = ['rawPrM', 'prange_sigma', 'sv_x', 'sv_y', 'sv_z','sv_vx', 'sv_vy', 'sv_vz']
     # Determine dataset type
+    GPSconstants = gpsconsts()
     rename_func, gps = get_rename_func(file_paths)
     traj_num = 0
     trajectories = []
     chunk_num = 0
     seed = 0
     for trace_key, paths in file_paths.items():
+        nan_columns = []
+        empty_times = []
         if verbose:
             print('Saving ', trace_key)
         traj, phn = trace_key.split('_')
@@ -60,22 +65,37 @@ def android_data(file_paths, save_root, verbose=True):
         else:
             phones.append(phn)
             seed += 1
-        save_path = os.path.join(save_root, trace_key)
-        initialize_dirs(save_path)
         measures = pd.read_csv(paths['measures'])
         gt = pd.read_csv(paths['ground_truth'])
         measures, gt = rename_func(measures, gt)
+        
+        #Drop all non-GPS-L1 measurements
+        measures = measures.loc[measures['SignalType']=='GPS_L1', :].copy()
+        
+        #Drop all non-L1 measurements
+        
+        if gt['alt'].isnull().values.any():
+            print(trace_key, ' had NaNs in altitude, skipping')
+            continue
         # print(measures.columns)
         # print(gt.columns)
         file_idx = 0
+        save_path = os.path.join(save_root, trace_key)
+        initialize_dirs(save_path)
         #TODO: Replace these as terms that change based on datasets
-        for utc_time, time_measure in tqdm(measures.groupby('utcTimeMillis')):
+        for utc_time, time_measure_raw in tqdm(measures.groupby('utcTimeMillis')):
+            # Drop rows where measurements are missing
+            time_measure = time_measure_raw.dropna(subset=key_observables).copy()
+            time_measure = time_measure.reset_index(drop=True)
             gt_slice = android_find_gt(gt, 'time_millis', utc_time)
             gt_lla = gt_slice[['lat', 'long', 'alt']].to_numpy()
+            if time_measure.empty:
+                empty_times.append(utc_time)
+                continue
             gt_ecef = geodetic2ecef(gt_lla)
-            time_measure['gt_x'] = gt_ecef[0, 0]*len(time_measure)
-            time_measure['gt_y'] = gt_ecef[0, 1]*len(time_measure)
-            time_measure['gt_z'] = gt_ecef[0, 2]*len(time_measure)
+            time_measure['gt_x'] = gt_ecef[0, 0]
+            time_measure['gt_y'] = gt_ecef[0, 1]
+            time_measure['gt_z'] = gt_ecef[0, 2]
             time_measure['timestamp'] = millis_to_datetime(utc_time, gps)
             time_measure['prange'] = time_measure["rawPrM"] \
                                 + time_measure["satClkBiasM"] \
@@ -95,11 +115,52 @@ def android_data(file_paths, save_root, verbose=True):
             time_measure['gt_vz'] = np.zeros(len(time_measure))
             time_measure['gt_vb'] = np.zeros(len(time_measure))
             
+            time_measure['doppler'] = -(GPSconstants.f1/GPSconstants.c)*time_measure['prange_rate']
+            
             file_name = f"{traj_num:02}" + '_' + str(chunk_num) + '_' + str(seed) + '_' + f"{file_idx:04}"
             
-            time_measure.to_csv(os.path.join(save_path, file_name + ".csv"))
             
+            for col_name in time_measure.columns:
+                if time_measure[col_name].isnull().values.any() and col_name not in nan_columns:
+                    nan_columns.append(col_name)
+            
+            time_measure = time_measure.fillna(value=0)
+            
+            measures_to_keep = ['rawPrM',
+                                'prange_sigma',
+                                'gt_x',
+                                'gt_y',
+                                'gt_z',
+                                'gt_b',
+                                'gt_vx',
+                                'gt_vy',
+                                'gt_vz',
+                                'gt_vb',
+                                'timestamp',
+                                'prange',
+                                'satClkBiasM',
+                                'isrbM',
+                                'ionoDelayM',
+                                'tropoDelayM',
+                                'doppler',
+                                'SvName',
+                                'prange_rate',
+                                'prange_corr',
+                                'sv_x',
+                                'sv_y',
+                                'sv_z',
+                                'sv_vx',
+                                'sv_vy',
+                                'sv_vz']
+            drop_columns = []
+            for col_name in time_measure.columns:
+                if col_name not in measures_to_keep:
+                    drop_columns.append(col_name)
+            time_measure = time_measure.drop(columns=drop_columns)
+            time_measure.to_csv(os.path.join(save_path, file_name + ".csv"))
             file_idx += 1
         if verbose:
             print('Saved ', file_idx, ' files for ', trace_key)
+            print(f"Found NaNs in columns {nan_columns} while saving files")
+            print(f"There were no measurements at {empty_times}")
             print('Final file name ', file_name + ".csv")

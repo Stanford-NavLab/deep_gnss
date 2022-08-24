@@ -1,0 +1,28 @@
+prefix: ??? # Prefix is a required variable to run the file
+
+# Model parameters
+embedding: 'FCN'   # ['FCN',  'HDWLS', 'set_transformer']
+model_type: 'RNN' #['RNN', 'snapshot']
+history: 5
+
+# Dataset parameters
+frac: 0.9
+batch_size: 32
+learning_rate: 3e-4 
+max_open_files: 10000
+seed: 0
+max_sats: 13
+
+# Training run parameters
+N_test_batches: 100
+N_train_epochs: 200
+num_workers: 8
+resume: 0
+writer: True
+
+# Initialization parameters
+guess_pos: 15
+guess_vel: 1e-5
+
+# Training/saving directories
+data_dir: "train_new_batch"

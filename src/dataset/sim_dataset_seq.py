@@ -54,7 +54,8 @@ class Sim_GNSS_Dataset_Seq(Dataset):
             data = self.cache_data[key]
         else:
             filepath = self.file_paths.loc[traj_idx, chunk_idx, seed_idx, t_idx]
-            data = pd.read_hdf(filepath.item(), 'new_data')
+#             data = pd.read_hdf(filepath.item(), 'new_data')
+            data = pd.read_csv(filepath.item())
             
             if len(self.cache_data) >= self.max_open_files:
                 pop_key = list(self.cache_data.keys())[0]

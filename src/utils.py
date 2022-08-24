@@ -362,7 +362,7 @@ def solve_gt_b(dframe, max_iter=20, tol=1e-3):
     G = np.ones((sat_pos.shape[0],1))
 #     G[:,:3] = np.divide(gt_pos - sat_pos,gt_ranges.reshape(-1,1))
 
-    W = np.diag(1./dframe["prange_sigma"]**2)
+    W = np.diag(1./(dframe["prange_sigma"]**2 + tol))
     rb = 0.
     for _ in range(max_iter):
         rho_diff = dframe["prange"].to_numpy() \
