@@ -10,18 +10,23 @@ Modified Set Transformer to reduce a set of features to a fixed-dim output
 (elements, batch, dim_in) -> (1, batch, dim_out) [Flip elements and batch if batch_first = True]
 """
 class SetTransformerPointOutput(torch.nn.Module):
-    def __init__(self, dim_input, num_outputs, dim_output, dim_hidden=64, num_layers=[2, 2, 2, 2], num_heads=4, batch_first=False):
+    def __init__(self, dim_input, num_outputs, dim_output, dim_hidden=16, num_layers=[2, 2, 2, 2], num_heads=4, batch_first=False):
         super().__init__()
  
+        activation = nn.LayerNorm(dim_hidden)
+#         activation = nn.ReLU()
+    
+    
         self.feat_in = nn.Sequential(
                         nn.Linear(dim_input, dim_hidden),
-                        nn.PReLU()
+                        activation
                     )
     
         layers = []
         for i in range(num_layers[0]):
             layers += [nn.Linear(dim_hidden, dim_hidden)]
-            layers += [nn.PReLU()]
+            activation = nn.LayerNorm(dim_hidden)
+            layers += [activation]
         
         self.enc_feat = nn.Sequential(*layers)
         
@@ -34,16 +39,35 @@ class SetTransformerPointOutput(torch.nn.Module):
         layers = []
         for i in range(num_layers[3]):
             layers += [nn.Linear(dim_hidden*num_outputs, dim_hidden*num_outputs)]
-            layers += [nn.PReLU()]
+            activation = nn.LayerNorm(dim_hidden)
+            layers += [activation]
         
         self.dec_feat = nn.Sequential(*layers)
         
         self.feat_out = nn.Sequential(
                     nn.Linear(dim_hidden*num_outputs, dim_output)
                     )
+        self.dim_output = dim_output
         self.batch_first = batch_first
 
     def forward(self, x, pad_mask=None, mask_batches=None):
+        if self.batch_first:
+            B = x.shape[0]
+        else:
+            B = x.shape[1]
+        
+        out_all = torch.zeros(B, self.dim_output).cuda()
+        
+        if mask_batches is None:
+            mask_batches = torch.ones(B, dtype=torch.bool)
+        
+        if self.batch_first:
+            x = x[mask_batches, :, :]           
+        else:
+            x = x[:, mask_batches, :]
+            
+        pad_mask = pad_mask[mask_batches, :]
+        
         x = self.feat_in(x)
         x = self.enc_feat(x)
         x = self.enc(x, pad_mask=pad_mask)
@@ -56,4 +80,7 @@ class SetTransformerPointOutput(torch.nn.Module):
             x = x.reshape(x.shape[0], -1)
         x = self.dec_feat(x)
         out = self.feat_out(x)
-        return out
+        
+        out_all[mask_batches, :] = out
+        
+        return out_all

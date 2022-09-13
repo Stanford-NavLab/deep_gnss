@@ -374,7 +374,50 @@ class LearnedEmbeddingsRNN(torch.nn.Module):
         out = self.fc(out) + x[:, :, :4]
         if self.time_last:
             out = out.transpose(2, 1)
-        return out    
+        return out
+    
+    
+"""
+Transformer w/ Learned GNSS Embeddings
+Uses zeros as target
+(elements, batch, time, dim_in) -> (batch, time, dim_out) [Flip elements and batch if batch_first = True]
+"""
+class LearnedEmbeddingsTransformer(torch.nn.Module):
+    def __init__(self, embedding, timestep_dim=16, batch_first=False, time_last=False, **kwargs):
+        super().__init__()
+        
+        self.embedding = embedding
+        
+        self.fc_dxt = make_fc(timestep_dim+5+3*2, [timestep_dim, timestep_dim], timestep_dim)
+        
+        self.transformer = nn.Transformer(batch_first=batch_first, **kwargs)
+        
+        self.batch_first = batch_first
+        self.time_last = time_last
+    
+    def forward(self, x, dxt_feat, pad_mask, mask_times):
+        if not self.batch_first:
+            x = x.transpose(0, 1).transpose(1, 2)
+        else:
+            x = x.transpose(1, 2)
+        B, T, M, dim = x.shape
+        dxt_dim = dxt_feat.shape[1]
+        
+        x = self.embedding(x.reshape(-1, M, dim), pad_mask.transpose(2, 1).reshape(-1, M), mask_batches=mask_times.reshape(-1)).reshape(B, T, -1)
+        x = torch.cat((x, dxt_feat.transpose(1, 2)), -1)
+        out = self.fc_dxt(x)
+        out = out.transpose(2, 1)
+        
+        # Propagate input through Transformer
+        dummy_tgt = torch.zeros(B, 4, T).cuda()
+        
+        # if self.training:
+        out = self.transformer(out, dummy_tgt).transpose(2, 1)
+        
+        out = out + x[:, :, :4]
+        if self.time_last:
+            out = out.transpose(2, 1)
+        return out
     
 ###########################################################################################################################
 # Utility functions
