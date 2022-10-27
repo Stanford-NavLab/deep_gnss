@@ -6,6 +6,7 @@ import torch
 import torch.nn.functional as F
 from tqdm import tqdm
 import random
+import glob
 import time 
 from numpy.random import default_rng
 
@@ -43,8 +44,11 @@ def list_datasets(config, transforms=None):
 
 def filepath_to_idx(file_path):
     tmp_name = os.path.split(file_path)[1].split(".")[0]
+    idx_vals = tmp_name.split("_")
+    if len(idx_vals) < 4:
+        idx_vals = [idx_vals[0], 0, 0, idx_vals[-1]]
 
-    return tmp_name.split("_")
+    return idx_vals
 
 def create_coords(files, batched=False):
     traj_coord = []
@@ -246,6 +250,18 @@ def res_los_features(prange, expected_prange, satXYZ, guess_XYZb, ref_local):
     retval[:, 1:] = los_vector
     return retval
 
+def res_los_android_features(prange, expected_prange, satXYZ, guess_XYZb, ref_local, multipath, sigtype, cn0):
+    retval = np.zeros((len(prange), 14))
+    retval[:, :4] = res_los_features(prange, expected_prange, satXYZ, guess_XYZb, ref_local)
+    retval[:, 4] = multipath
+    retval[:, 5] = cn0/10.0
+    
+    # One-hot encoding 
+    sigtype = sigtype.astype(np.int64)
+    retval[np.arange(len(sigtype)), 5+sigtype] = 1.0
+    
+    return retval
+
 ################################################################################################################################
 # Misc
 ################################################################################################################################
@@ -280,8 +296,9 @@ def setup_dir(dirpath, folder_list):
         initialize_dirs(tmp_path)
     return all_paths
 
-def sorted_list(dirpath):
-    return [os.path.join(dirpath, fpath) for fpath in np.sort(os.listdir(dirpath))]
+def sorted_list(dirpath, ext=""):
+#     return [os.path.join(dirpath, fpath) for fpath in np.sort([f for f in glob.glob(dirpath+"/*"+ext)])]
+    return np.sort([f for f in tqdm(glob.glob(dirpath+"/*"+ext))])
 
 def unique_sort(obj):
     return np.sort(list(set(obj)))

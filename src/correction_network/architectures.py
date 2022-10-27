@@ -61,7 +61,7 @@ class BasicLS(torch.nn.Module):
         
         self.batch_first = batch_first
         
-    def forward(self, x, pad_mask):
+    def forward(self, x, pad_mask, mask_batches=None):
         if not self.batch_first:
             x = x.transpose(1, 0, 2)
         B, M, dim = x.shape
@@ -116,7 +116,7 @@ Learned WLS embeddings
 (elements, batch, dim_in) -> (batch, dim_out) [Flip elements and batch if batch_first = True]
 """
 class LearnedWLSEmbeddings(torch.nn.Module):
-    def __init__(self, input_dim=4+1, A_hidden_dims=[4, 4, 4], b_hidden_dims=[4, 4, 4], decoder_hidden_dims=[16, 16, 4], embedding_dim=64, output_dim=4, batch_first=False, output_residual=False):
+    def __init__(self, input_dim=14+1, A_hidden_dims=[16, 16, 64], b_hidden_dims=[16, 16, 64], decoder_hidden_dims=[16, 16, 4], embedding_dim=64, output_dim=4, batch_first=False, output_residual=False):
         super().__init__()
         
         self.output_residual = output_residual
@@ -293,12 +293,15 @@ Snapshot w/ Learned GNSS Embeddinbgs
 (elements, batch, time, dim_in) -> (batch, time, dim_out) [Flip elements and batch if batch_first = True]
 """
 class LearnedEmbeddingsSnapshot(torch.nn.Module):
-    def __init__(self, embedding, embedding_dim=16, output_dim=4, batch_first=False, time_last=False, **kwargs):
+    def __init__(self, embedding, embedding_dim=16, output_dim=4, batch_first=False, time_last=False, apply_fc=True, **kwargs):
         super().__init__()
         
         self.embedding = embedding
         
-        self.fc = make_fc(embedding_dim, [embedding_dim, embedding_dim//2], output_dim)
+        if apply_fc:
+            self.fc = make_fc(embedding_dim, [embedding_dim, embedding_dim//2], output_dim)
+        else:
+            self.fc = lambda x: 0
         
         self.batch_first = batch_first
         self.time_last = time_last
