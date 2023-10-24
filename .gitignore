@@ -13,7 +13,7 @@ docs/ION*
 *.out
 .pytest_cache
 *.html
-
+src/simple_problems
 notebooks/.ipynb_checkpoints/*
 *.out
 .python-version
